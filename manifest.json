@@ -1,0 +1,8 @@
+{
+  "name": "Air Alert Map",
+  "short_name": "RadarUA",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0a1f3a",
+  "background_color": "#000000"
+}

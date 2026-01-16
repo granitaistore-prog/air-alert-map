@@ -1,0 +1,1 @@
+export function renderTarget(map,t){ L.circleMarker([t.lat,t.lng],{radius:5,color:'red'}).addTo(map); }

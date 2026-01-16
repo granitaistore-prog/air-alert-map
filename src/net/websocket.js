@@ -1,0 +1,1 @@
+export function connectWS(){ console.log('WS connected'); }

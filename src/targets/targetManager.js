@@ -1,0 +1,2 @@
+import { createTarget } from './targetModel.js'; import { renderTarget } from './targetRenderer.js';
+export function startRadar(map){ setInterval(()=>{ const t=createTarget(); renderTarget(map,t); },1500); }

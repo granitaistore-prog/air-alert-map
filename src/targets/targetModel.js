@@ -1,0 +1,1 @@
+export function createTarget(){ return { lat:48+Math.random()*4, lng:26+Math.random()*8 }; }

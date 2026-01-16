@@ -1,0 +1,1 @@
+export function showPanel(text){ console.log(text); }

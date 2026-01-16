@@ -1,0 +1,1 @@
+export function initMap(){ const map=L.map('map').setView([49,31],6); L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png').addTo(map); return map; }
