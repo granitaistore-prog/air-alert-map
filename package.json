@@ -1,20 +1,25 @@
 {
-  "name": "air-alert-map",
-  "version": "1.0.0",
-  "description": "PWA для відстеження повітряних цілей в Україні",
-  "main": "src/main.js",
+  "name": "air-alert-pwa",
+  "version": "2.0.0",
+  "description": "PWA додаток для моніторингу повітряних тривог в Україні",
+  "main": "index.html",
   "scripts": {
-    "start": "live-server --port=3000",
-    "build": "echo 'Building project...'",
-    "test": "echo 'No tests specified'"
+    "start": "http-server -p 8080 -c-1",
+    "dev": "live-server --port=3000 --host=localhost",
+    "build": "echo 'PWA build complete'",
+    "deploy": "echo 'Deploy to GitHub Pages or Netlify'"
   },
-  "dependencies": {
-    "leaflet": "^1.9.4"
-  },
-  "devDependencies": {
-    "live-server": "^1.2.2"
-  },
-  "keywords": ["pwa", "ukraine", "air-alert", "map"],
+  "keywords": [
+    "pwa",
+    "ukraine",
+    "air-alert",
+    "mobile",
+    "service-worker"
+  ],
   "author": "Your Name",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "live-server": "^1.2.2"
+  }
 }
