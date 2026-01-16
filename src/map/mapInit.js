@@ -1,84 +1,100 @@
+// src/map/mapInit.js
+
+/**
+ * Ініціалізація Leaflet мапи
+ * @returns {L.Map} Ініціалізована мапа
+ */
 export function initMap() {
+    console.log('Initializing map...');
+    
+    // Створюємо мапу
     const map = L.map('map', {
-        center: [49.0, 31.5],
+        center: [49.0, 31.5], // Центр України
         zoom: 6,
         minZoom: 5,
-        maxZoom: 13,
+        maxZoom: 18,
         zoomControl: false,
         attributionControl: false,
         maxBounds: [
-            [44.0, 22.0],
-            [53.0, 41.0]
+            [43.0, 22.0], // Південно-західний кут
+            [53.0, 41.0]  // Північно-східний кут
         ],
-        maxBoundsViscosity: 1.0
+        maxBoundsViscosity: 1.0 // Строго обмежуємо рух
     });
 
-    // Додаємо контрол зумі в праву частину
+    // Додаємо базовий шар (темна мапа)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap, © CartoDB',
+        subdomains: 'abcd',
+        maxZoom: 19
+    }).addTo(map);
+
+    // Додаємо кастомний контрол збільшення
     L.control.zoom({
-        position: 'topright'
+        position: 'bottomright'
     }).addTo(map);
 
-    // Базовий шар
-    const baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© Карта України',
-        subdomains: 'abcd'
+    // Кастомна атрибуція
+    L.control.attribution({
+        position: 'bottomleft',
+        prefix: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    // Зберігаємо посилання на шари
-    map._layers = {
-        base: baseLayer,
-        satellite: null,
-        terrain: null
-    };
-
-    // Додаємо контур України
-    const ukraineBounds = L.rectangle([
-        [44.0, 22.0],
-        [53.0, 41.0]
-    ], {
-        color: '#2ecc71',
-        weight: 2,
-        fillOpacity: 0.03,
-        fillColor: '#2ecc71'
+    // Масштабна лінійка
+    L.control.scale({
+        imperial: false,
+        metric: true,
+        position: 'bottomright'
     }).addTo(map);
 
-    ukraineBounds.bindTooltip('Україна', {
-        permanent: false,
-        direction: 'center',
-        className: 'ukraine-tooltip'
-    });
-
-    console.log('Map initialized');
+    console.log('Map initialized successfully');
     return map;
 }
 
-export function changeBaseLayer(map, layerType) {
-    // Видаляємо поточний базовий шар
-    if (map._layers.base) {
-        map.removeLayer(map._layers.base);
-    }
+/**
+ * Змінити базовий шар мапи
+ * @param {L.Map} map - Мапа
+ * @param {string} layerId - ID шару (dark, satellite, terrain)
+ */
+export function changeBaseLayer(map, layerId) {
+    console.log(`Changing base layer to: ${layerId}`);
+    
+    // Видаляємо всі існуючі шари
+    map.eachLayer((layer) => {
+        if (layer instanceof L.TileLayer) {
+            map.removeLayer(layer);
+        }
+    });
 
     let newLayer;
     
-    switch(layerType) {
+    switch(layerId) {
         case 'satellite':
             newLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: '© Esri, Maxar, Earthstar Geographics'
+                attribution: '© Esri, Maxar, Earthstar Geographics',
+                maxZoom: 19
             });
             break;
             
         case 'terrain':
             newLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenTopoMap'
+                attribution: '© OpenStreetMap contributors, SRTM',
+                maxZoom: 17
             });
             break;
             
-        default: // 'dark'
+        case 'dark':
+        default:
             newLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '© Карта України'
+                attribution: '© OpenStreetMap, © CartoDB',
+                subdomains: 'abcd',
+                maxZoom: 19
             });
+            break;
     }
 
     newLayer.addTo(map);
-    map._layers.base = newLayer;
+    localStorage.setItem('map-layer', layerId);
+    
+    return newLayer;
 }
