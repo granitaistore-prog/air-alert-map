@@ -7,7 +7,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0a1f3a">
-    <title>Повітряна тривога Україна</title>
+    <meta name="description" content="PWA додаток для моніторингу повітряних тривог та відключень світла в Україні">
+    
+    <title>🛡️ Тривоги та Світло України</title>
     
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
@@ -16,127 +18,153 @@
     
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
-        /* Базові стилі для PWA */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { 
-            height: 100%; 
-            overflow: hidden; 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-        body { 
-            background: #0a1f3a; 
-            color: white;
+        /* PWA стилі для смартфону */
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
-            -webkit-touch-callout: none;
         }
         
-        /* Мапа займає весь екран */
-        #map { 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            z-index: 1;
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            touch-action: manipulation;
         }
         
-        /* Хедер для PWA */
-        .pwa-header {
+        body {
+            background: #0a1f3a;
+            color: white;
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
-            height: env(safe-area-inset-top, 20px) + 60px;
-            padding-top: env(safe-area-inset-top, 20px);
-            background: rgba(10, 31, 58, 0.95);
-            backdrop-filter: blur(10px);
+            bottom: 0;
+        }
+        
+        /* Мапа на весь екран */
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        /* Статус бар PWA (замість нативного) */
+        .status-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: env(safe-area-inset-top, 0px);
+            background: #0a1f3a;
             z-index: 1000;
-            display: flex;
-            align-items: center;
-            padding: max(env(safe-area-inset-top, 20px), 20px) 15px 15px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
         
-        .header-title {
+        /* Головний хедер */
+        .app-header {
+            position: fixed;
+            top: env(safe-area-inset-top, 0px);
+            left: 0;
+            right: 0;
+            background: rgba(10, 31, 58, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .app-title {
             flex: 1;
-            font-size: 16px;
-            font-weight: bold;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .header-status {
-            font-size: 12px;
-            opacity: 0.8;
+            font-size: 18px;
+            font-weight: 700;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 10px;
         }
         
-        /* Контроли для смартфону */
-        .mobile-controls {
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Панель кнопок для мобільного */
+        .controls-panel {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            background: linear-gradient(to top, rgba(10, 31, 58, 0.95), transparent);
-            padding: 20px 15px max(env(safe-area-inset-bottom, 20px), 20px);
-            z-index: 1000;
+            background: linear-gradient(to top, rgba(10, 31, 58, 0.98), transparent);
+            padding: 16px 16px max(20px, env(safe-area-inset-bottom, 20px));
+            z-index: 1001;
             display: flex;
-            gap: 10px;
+            gap: 12px;
+            justify-content: space-around;
         }
         
-        .mobile-btn {
+        .control-btn {
             flex: 1;
             background: rgba(52, 152, 219, 0.9);
             border: none;
-            border-radius: 12px;
+            border-radius: 16px;
             color: white;
-            padding: 12px;
-            font-size: 14px;
-            font-weight: bold;
+            padding: 16px 8px;
+            font-size: 13px;
+            font-weight: 600;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 5px;
-            min-height: 60px;
-            backdrop-filter: blur(10px);
+            gap: 6px;
+            min-height: 72px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
         
-        .mobile-btn-icon {
-            font-size: 20px;
+        .control-btn:active {
+            transform: scale(0.95);
+            background: rgba(41, 128, 185, 0.9);
         }
         
-        .mobile-btn-text {
+        .control-btn.alert-active {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(231, 76, 60, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+        }
+        
+        .btn-icon {
+            font-size: 24px;
+        }
+        
+        .btn-text {
             font-size: 11px;
+            text-align: center;
         }
         
-        /* Статус бар */
-        .status-bar {
-            position: fixed;
-            top: calc(env(safe-area-inset-top, 20px) + 60px);
-            left: 0;
-            right: 0;
-            background: rgba(231, 76, 60, 0.9);
-            padding: 10px 15px;
-            z-index: 999;
-            display: none;
-        }
-        
-        .status-bar.active {
-            display: block;
-            animation: slideDown 0.3s ease;
-        }
-        
-        @keyframes slideDown {
-            from { transform: translateY(-100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        
-        /* Панель тривог для мобільного */
-        .mobile-panel {
+        /* Панель тривог (виїжджає знизу) */
+        .alerts-panel {
             position: fixed;
             top: 0;
             left: 0;
@@ -145,29 +173,97 @@
             background: #0a1f3a;
             z-index: 2000;
             transform: translateY(100%);
-            transition: transform 0.3s ease;
-            padding-top: env(safe-area-inset-top, 20px);
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            padding-top: env(safe-area-inset-top, 0px);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
         
-        .mobile-panel.active {
+        .alerts-panel.active {
             transform: translateY(0);
         }
         
         .panel-header {
-            padding: 15px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: sticky;
+            top: 0;
+            background: #0a1f3a;
+            padding: 20px 16px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            z-index: 10;
         }
         
-        .alert-item {
-            padding: 15px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        .panel-title {
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         
-        /* Завантаження */
-        #loading-screen {
+        .close-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        
+        .alerts-list {
+            padding: 16px;
+        }
+        
+        .alert-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid #e74c3c;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .alert-card.safe {
+            border-left-color: #2ecc71;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Сповіщення */
+        .notification {
+            position: fixed;
+            top: calc(env(safe-area-inset-top, 0px) + 70px);
+            left: 16px;
+            right: 16px;
+            background: rgba(231, 76, 60, 0.95);
+            color: white;
+            padding: 16px;
+            border-radius: 12px;
+            z-index: 2001;
+            backdrop-filter: blur(20px);
+            transform: translateY(-20px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 24px rgba(231, 76, 60, 0.3);
+        }
+        
+        .notification.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        /* Екран завантаження */
+        .loading-screen {
             position: fixed;
             top: 0;
             left: 0;
@@ -180,13 +276,85 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
+            transition: opacity 0.5s ease;
+        }
+        
+        .loading-content {
+            text-align: center;
+            max-width: 300px;
+        }
+        
+        .loading-logo {
+            font-size: 64px;
+            margin-bottom: 24px;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .progress-container {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            margin: 30px 0;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 2px;
         }
         
         /* Адаптивність */
         @media (min-width: 768px) {
-            .mobile-controls {
-                display: none;
+            .controls-panel {
+                max-width: 400px;
+                left: 50%;
+                transform: translateX(-50%);
+                padding-bottom: 24px;
             }
+            
+            .control-btn {
+                max-width: 80px;
+            }
+        }
+        
+        /* Dark mode для мапи */
+        .leaflet-container {
+            background: #1a365d;
+        }
+        
+        .leaflet-control-attribution {
+            background: rgba(0, 0, 0, 0.7) !important;
+            color: rgba(255, 255, 255, 0.7) !important;
+            font-size: 10px !important;
+        }
+        
+        .leaflet-control-zoom {
+            border: none !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+        }
+        
+        .leaflet-control-zoom a {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(10px) !important;
+            border: none !important;
+            color: white !important;
+            width: 44px !important;
+            height: 44px !important;
+            line-height: 44px !important;
+            font-size: 22px !important;
+        }
+        
+        .leaflet-control-zoom a:hover {
+            background: rgba(255, 255, 255, 0.2) !important;
         }
     </style>
 </head>
@@ -194,283 +362,133 @@
     <!-- Мапа -->
     <div id="map"></div>
     
-    <!-- PWA Хедер -->
-    <div class="pwa-header">
-        <div class="header-title">🛡️ Тривоги України</div>
-        <div class="header-status">
-            <span id="status-icon">🔴</span>
+    <!-- Статус бар для iPhone -->
+    <div class="status-bar"></div>
+    
+    <!-- Головний хедер -->
+    <header class="app-header">
+        <div class="app-title">
+            <span>🛡️</span>
+            <span>Тривоги та Світло</span>
+        </div>
+        <div class="status-indicator">
+            <span id="status-icon">🟡</span>
             <span id="status-text">Завантаження...</span>
         </div>
+    </header>
+    
+    <!-- Панель керування -->
+    <div class="controls-panel">
+        <button class="control-btn" id="btn-alerts" data-badge="0">
+            <span class="btn-icon" id="alerts-icon">📢</span>
+            <span class="btn-text">Тривоги</span>
+        </button>
+        <button class="control-btn" id="btn-location">
+            <span class="btn-icon">📍</span>
+            <span class="btn-text">Моє місце</span>
+        </button>
+        <button class="control-btn" id="btn-center">
+            <span class="btn-icon">🎯</span>
+            <span class="btn-text">Центр</span>
+        </button>
+        <button class="control-btn" id="btn-light">
+            <span class="btn-icon">💡</span>
+            <span class="btn-text">Світло</span>
+        </button>
+        <button class="control-btn" id="btn-settings">
+            <span class="btn-icon">⚙️</span>
+            <span class="btn-text">Налаштування</span>
+        </button>
     </div>
     
-    <!-- Статус бар для сповіщень -->
-    <div id="alert-bar" class="status-bar">
-        <div id="alert-text">Нова повітряна тривога!</div>
-    </div>
-    
-    <!-- Мобільні контроли -->
-    <div class="mobile-controls">
-        <button class="mobile-btn" id="btn-alerts">
-            <span class="mobile-btn-icon">📢</span>
-            <span class="mobile-btn-text">Тривоги</span>
-        </button>
-        <button class="mobile-btn" id="btn-center">
-            <span class="mobile-btn-icon">🎯</span>
-            <span class="mobile-btn-text">Центр</span>
-        </button>
-        <button class="mobile-btn" id="btn-location">
-            <span class="mobile-btn-icon">📍</span>
-            <span class="mobile-btn-text">Моє місце</span>
-        </button>
-        <button class="mobile-btn" id="btn-settings">
-            <span class="mobile-btn-icon">⚙️</span>
-            <span class="mobile-btn-text">Налаштування</span>
-        </button>
-    </div>
-    
-    <!-- Мобільна панель тривог -->
-    <div id="mobile-panel" class="mobile-panel">
+    <!-- Панель тривог -->
+    <div id="alerts-panel" class="alerts-panel">
         <div class="panel-header">
-            <h3>📢 Активні тривоги</h3>
-            <button id="btn-close-panel">✖️</button>
+            <h2 class="panel-title">
+                <span id="panel-alerts-icon">📢</span>
+                <span>Активні тривоги</span>
+                <span id="alerts-count" style="font-size: 14px; opacity: 0.7; margin-left: 8px;">(0)</span>
+            </h2>
+            <button class="close-btn" id="btn-close-panel">✕</button>
         </div>
-        <div id="alerts-list">
-            <!-- Тривоги завантажуються тут -->
+        <div class="alerts-list" id="alerts-list">
+            <!-- Список тривог завантажується тут -->
+            <div style="text-align: center; padding: 60px 20px; opacity: 0.7;">
+                <div style="font-size: 48px; margin-bottom: 16px;">🕊️</div>
+                <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Тривог немає</div>
+                <div style="font-size: 14px;">Усі регіони безпечні</div>
+            </div>
         </div>
+    </div>
+    
+    <!-- Сповіщення -->
+    <div id="notification" class="notification">
+        <div id="notification-text"></div>
     </div>
     
     <!-- Екран завантаження -->
-    <div id="loading-screen">
-        <div style="font-size: 60px; margin-bottom: 20px;">🛡️</div>
-        <h2 style="margin-bottom: 10px; text-align: center;">Повітряні тривоги України</h2>
-        <p style="opacity: 0.8; margin-bottom: 30px; text-align: center;">PWA додаток для моніторингу</p>
-        <div style="width: 200px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
-            <div id="progress-bar" style="height: 100%; background: #2ecc71; width: 0%; transition: width 0.3s;"></div>
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-logo">🛡️</div>
+            <h1 style="font-size: 28px; margin-bottom: 12px;">Повітряні тривоги України</h1>
+            <p style="opacity: 0.8; margin-bottom: 8px; font-size: 16px;">PWA додаток для моніторингу</p>
+            <p style="opacity: 0.6; font-size: 14px; margin-bottom: 30px;">Тривоги та відключення світла в режимі реального часу</p>
+            
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            
+            <p id="loading-text" style="font-size: 14px; opacity: 0.7; margin-top: 20px;">Завантаження мапи...</p>
         </div>
-        <p id="loading-text" style="margin-top: 10px; font-size: 14px; opacity: 0.7;">Завантаження...</p>
     </div>
     
     <!-- Скрипти -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script type="module">
-        // Базова ініціалізація PWA
-        import { initMap } from './src/map/mapInit.js';
-        import { initHUD, updateHUD } from './src/ui/hud.js';
-        import { showNotification } from './src/ui/notifications.js';
-        import { fetchRealAlerts } from './src/net/api.js';
-        
-        class MobileAirAlertApp {
-            constructor() {
-                this.map = null;
-                this.activeAlerts = [];
-                this.updateInterval = null;
-            }
-            
-            async init() {
-                try {
-                    // Ініціалізація мапи
-                    this.map = initMap();
-                    
-                    // Налаштування мапи для мобільного
-                    this.map.touchZoom.enable();
-                    this.map.doubleClickZoom.disable();
-                    
-                    // Приховуємо екран завантаження
-                    setTimeout(() => {
-                        this.hideLoading();
-                    }, 1000);
-                    
-                    // Завантаження даних
-                    await this.loadAlerts();
-                    
-                    // Запуск оновлень
-                    this.startUpdates();
-                    
-                    // Налаштування подій
-                    this.setupEvents();
-                    
-                    // Реєстрація PWA
-                    this.registerPWA();
-                    
-                } catch (error) {
-                    console.error('Помилка ініціалізації:', error);
-                    showNotification('Помилка завантаження додатку', 'error');
-                }
-            }
-            
-            async loadAlerts() {
-                try {
-                    const data = await fetchRealAlerts();
-                    this.activeAlerts = data.states || [];
-                    this.updateUI();
-                } catch (error) {
-                    console.error('Помилка завантаження тривог:', error);
-                }
-            }
-            
-            updateUI() {
-                // Оновлення статусу
-                const statusIcon = document.getElementById('status-icon');
-                const statusText = document.getElementById('status-text');
-                
-                if (this.activeAlerts.length > 0) {
-                    statusIcon.textContent = '🔴';
-                    statusText.textContent = `${this.activeAlerts.length} активних тривог`;
-                    document.getElementById('alert-bar').classList.add('active');
-                    document.getElementById('alert-text').textContent = 
-                        `Активні тривоги: ${this.activeAlerts.length}`;
-                } else {
-                    statusIcon.textContent = '🟢';
-                    statusText.textContent = 'Тривог немає';
-                    document.getElementById('alert-bar').classList.remove('active');
-                }
-                
-                // Оновлення списку тривог
-                this.updateAlertsList();
-            }
-            
-            updateAlertsList() {
-                const list = document.getElementById('alerts-list');
-                if (!list) return;
-                
-                if (this.activeAlerts.length === 0) {
-                    list.innerHTML = `
-                        <div style="padding: 40px 20px; text-align: center; opacity: 0.7;">
-                            <div style="font-size: 40px; margin-bottom: 10px;">🕊️</div>
-                            <div>Тривог немає</div>
-                            <div style="font-size: 12px; margin-top: 5px;">Усі регіони безпечні</div>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                let html = '';
-                this.activeAlerts.forEach(alert => {
-                    html += `
-                        <div class="alert-item">
-                            <div style="font-weight: bold; margin-bottom: 5px;">
-                                🚨 ${alert.name || alert.region}
-                            </div>
-                            <div style="font-size: 12px; opacity: 0.8;">
-                                ${new Date(alert.changed).toLocaleTimeString('uk-UA')}
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                list.innerHTML = html;
-            }
-            
-            startUpdates() {
-                // Оновлення кожні 30 секунд
-                this.updateInterval = setInterval(() => {
-                    this.loadAlerts();
-                }, 30000);
-            }
-            
-            setupEvents() {
-                // Кнопки
-                document.getElementById('btn-alerts').addEventListener('click', () => {
-                    document.getElementById('mobile-panel').classList.add('active');
-                });
-                
-                document.getElementById('btn-close-panel').addEventListener('click', () => {
-                    document.getElementById('mobile-panel').classList.remove('active');
-                });
-                
-                document.getElementById('btn-center').addEventListener('click', () => {
-                    this.map.setView([49.0, 31.5], 6);
-                });
-                
-                document.getElementById('btn-location').addEventListener('click', () => {
-                    this.getUserLocation();
-                });
-                
-                document.getElementById('btn-settings').addEventListener('click', () => {
-                    showNotification('Налаштування будуть доступні в наступному оновленні', 'info');
-                });
-                
-                // Swipe для закриття панелі
-                let startY;
-                const panel = document.getElementById('mobile-panel');
-                
-                panel.addEventListener('touchstart', (e) => {
-                    startY = e.touches[0].clientY;
-                });
-                
-                panel.addEventListener('touchmove', (e) => {
-                    const currentY = e.touches[0].clientY;
-                    const diff = currentY - startY;
-                    
-                    if (diff > 50) {
-                        panel.classList.remove('active');
-                    }
-                });
-            }
-            
-            async getUserLocation() {
-                if (!navigator.geolocation) {
-                    showNotification('Геолокація не підтримується', 'error');
-                    return;
-                }
-                
-                showNotification('Визначення місцезнаходження...', 'info');
-                
-                try {
-                    const position = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, {
-                            enableHighAccuracy: true,
-                            timeout: 10000
-                        });
+    <script type="module" src="./src/ui/main.js"></script>
+    
+    <!-- Service Worker для PWA -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(registration => {
+                        console.log('✅ ServiceWorker зареєстрований:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('❌ Помилка реєстрації ServiceWorker:', error);
                     });
-                    
-                    const { latitude, longitude } = position.coords;
-                    this.map.setView([latitude, longitude], 13);
-                    showNotification('Місцезнаходження визначено', 'success');
-                    
-                } catch (error) {
-                    showNotification('Не вдалося визначити місцезнаходження', 'error');
-                }
-            }
-            
-            registerPWA() {
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.register('sw.js')
-                        .then(() => console.log('Service Worker зареєстровано'))
-                        .catch(err => console.log('Помилка Service Worker:', err));
-                }
-                
-                // Кнопка встановлення
-                let deferredPrompt;
-                window.addEventListener('beforeinstallprompt', (e) => {
-                    e.preventDefault();
-                    deferredPrompt = e;
-                    
-                    // Можна показати кнопку встановлення
-                    setTimeout(() => {
-                        if (deferredPrompt && confirm('Встановити додаток на робочий стіл?')) {
-                            deferredPrompt.prompt();
-                            deferredPrompt.userChoice.then(() => {
-                                deferredPrompt = null;
-                            });
-                        }
-                    }, 3000);
-                });
-            }
-            
-            hideLoading() {
-                const loading = document.getElementById('loading-screen');
-                loading.style.opacity = '0';
-                setTimeout(() => {
-                    loading.style.display = 'none';
-                }, 300);
-            }
+            });
         }
         
-        // Запуск додатку
-        const app = new MobileAirAlertApp();
-        window.addEventListener('DOMContentLoaded', () => app.init());
-        window.app = app;
+        // Встановлення PWA
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Показуємо сповіщення про встановлення через 5 секунд
+            setTimeout(() => {
+                if (deferredPrompt) {
+                    showInstallPrompt();
+                }
+            }, 5000);
+        });
+        
+        function showInstallPrompt() {
+            if (deferredPrompt) {
+                // Можна показати кастомну кнопку встановлення
+                const shouldInstall = confirm('Встановити додаток "Тривоги та Світло" на робочий стіл для швидкого доступу?');
+                if (shouldInstall) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult) => {
+                        if (choiceResult.outcome === 'accepted') {
+                            console.log('✅ Додаток встановлено');
+                        }
+                        deferredPrompt = null;
+                    });
+                }
+            }
+        }
     </script>
 </body>
-                </html>
+</html>
