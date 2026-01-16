@@ -1,11 +1,16 @@
 // src/map/mapInit.js
-
-/**
- * Ініціалізація Leaflet мапи
- * @returns {L.Map} Ініціалізована мапа
- */
 export function initMap() {
     console.log('Initializing map...');
+    
+    // Перевірка чи існує елемент
+    const mapElement = document.getElementById('map');
+    if (!mapElement) {
+        console.error('Map element (#map) not found in DOM!');
+        alert('Помилка: елемент для карти не знайдено. Перевірте HTML.');
+        throw new Error('Map element not found');
+    }
+    
+    console.log('Map element found, creating map...');
     
     // Створюємо мапу
     const map = L.map('map', {
@@ -19,7 +24,7 @@ export function initMap() {
             [43.0, 22.0], // Південно-західний кут
             [53.0, 41.0]  // Північно-східний кут
         ],
-        maxBoundsViscosity: 1.0 // Строго обмежуємо рух
+        maxBoundsViscosity: 1.0
     });
 
     // Додаємо базовий шар (темна мапа)
@@ -48,18 +53,20 @@ export function initMap() {
     }).addTo(map);
 
     console.log('Map initialized successfully');
+    
+    // Перевірка розмірів
+    setTimeout(() => {
+        map.invalidateSize();
+        console.log('Map size validated');
+    }, 100);
+    
     return map;
 }
 
-/**
- * Змінити базовий шар мапи
- * @param {L.Map} map - Мапа
- * @param {string} layerId - ID шару (dark, satellite, terrain)
- */
 export function changeBaseLayer(map, layerId) {
     console.log(`Changing base layer to: ${layerId}`);
     
-    // Видаляємо всі існуючі шари
+    // Видаляємо всі існуючі тайлові шари
     map.eachLayer((layer) => {
         if (layer instanceof L.TileLayer) {
             map.removeLayer(layer);
@@ -94,7 +101,11 @@ export function changeBaseLayer(map, layerId) {
     }
 
     newLayer.addTo(map);
-    localStorage.setItem('map-layer', layerId);
+    
+    // Зберігаємо вибір (якщо потрібно)
+    if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('map-layer', layerId);
+    }
     
     return newLayer;
 }
