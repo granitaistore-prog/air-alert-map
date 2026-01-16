@@ -5,7 +5,7 @@ import { TargetManager } from './targets/targetManager.js';
 import { initHUD, updateHUD } from './ui/hud.js';
 import { initPanels, updateTargetsList } from './ui/panels.js';
 import { showNotification } from './ui/notifications.js';
-import { simulateWebSocket, getMockTargets } from './net/api.js';
+import { simulateWebSocket, getMockTargets, fetchRealAlerts, fetchRegionsHistory, startRealDataUpdates } from './net/api.js';
 import { createWebSocketManager } from './net/websocket.js';
 
 class AirAlertApp {
@@ -16,9 +16,13 @@ class AirAlertApp {
         this.wsManager = null;
         this.isSimulating = false;
         this.simulationInterval = null;
+        this.realDataInterval = null;
         this.isPanelOpen = false;
         this.connectionStatus = 'disconnected';
-        this.useMockServer = true; // Змініть на false для реального сервера
+        this.useRealAPI = true; // Змініть на false для мок-даних
+        this.alertRegions = new Set(); // Області з активною тривогою
+        this.lastAlertUpdate = null;
+        this.updateMode = 'mixed'; // 'real', 'mock', 'mixed'
     }
 
     async init() {
@@ -39,15 +43,17 @@ class AirAlertApp {
             initHUD();
             initPanels();
             
-            // Ініціалізація WebSocket
+            // Ініціалізація WebSocket (опціонально)
             await this.initWebSocket();
             
             await this.showLoading(90);
             
             this.bindEvents();
             
-            // Якщо не використовуємо реальний сервер, запускаємо мок-дані
-            if (this.useMockServer) {
+            // Запускаємо отримання даних
+            if (this.useRealAPI) {
+                await this.startRealData();
+            } else {
                 this.startMockData();
             }
             
@@ -65,134 +71,283 @@ class AirAlertApp {
 
     async initWebSocket() {
         try {
-            if (this.useMockServer) {
-                // Використовуємо мок-сервер для тестування
-                console.log('Using mock WebSocket server');
-                return;
-            }
+            // Зараз використовуємо REST API замість WebSocket
+            // Але залишаємо можливість для майбутніх оновлень
+            console.log('Using REST API for data updates');
             
-            // Для реального сервера (розкоментуйте та налаштуйте URL)
+            // Можливість WebSocket для реального часу (закоментовано)
             /*
             this.wsManager = createWebSocketManager({
-                url: 'wss://your-real-api.com/air-alert',
-                autoConnect: true,
-                maxReconnectAttempts: 10,
-                reconnectInterval: 3000
+                url: 'wss://alerts.com.ua/ws',
+                autoConnect: false,
+                maxReconnectAttempts: 5,
+                reconnectInterval: 5000
             });
             
-            // Налаштування обробників подій WebSocket
             this.setupWebSocketHandlers();
             */
             
         } catch (error) {
             console.error('WebSocket initialization failed:', error);
-            showNotification('Помилка підключення до сервера', 'error');
         }
     }
 
     setupWebSocketHandlers() {
         if (!this.wsManager) return;
         
-        // Обробка оновлень цілей
-        this.wsManager.onMessage('target_update', (data, message) => {
-            console.log('Target update received:', data.targets?.length || 0, 'targets');
-            this.handleTargetUpdate(data.targets || []);
+        this.wsManager.onMessage('alert_update', (data) => {
+            console.log('Alert update via WebSocket:', data);
+            this.handleRealAlertsData(data);
         });
         
-        // Обробка статусу системи
-        this.wsManager.onMessage('system_status', (data) => {
-            console.log('System status:', data);
-            this.updateSystemStatus(data);
-        });
-        
-        // Обробка зміни статусу з'єднання
         this.wsManager.onStatusChange((status) => {
-            console.log('WebSocket status changed:', status);
             this.connectionStatus = status;
             this.updateConnectionStatus(status);
+        });
+    }
+
+    async startRealData() {
+        try {
+            console.log('Starting real data updates...');
             
-            // Показуємо сповіщення про зміну статусу
-            const statusMessages = {
-                'connected': 'Підключено до сервера моніторингу',
-                'disconnected': 'Відключено від сервера',
-                'reconnecting': 'Перепідключення до сервера...',
-                'error': 'Помилка з\'єднання з сервером'
-            };
+            // Перше завантаження даних
+            await this.fetchAndProcessAlerts();
             
-            if (statusMessages[status]) {
-                showNotification(statusMessages[status], 
-                    status === 'connected' ? 'success' : 
-                    status === 'error' ? 'error' : 'warning');
+            // Запускаємо регулярне оновлення
+            this.realDataInterval = setInterval(async () => {
+                await this.fetchAndProcessAlerts();
+            }, 30000); // Оновлення кожні 30 секунд
+            
+            // Альтернатива: використання готової функції
+            // this.realDataInterval = startRealDataUpdates(this.handleRealAlertsData.bind(this), 30000);
+            
+            this.updateConnectionStatus('connected');
+            showNotification('Підключено до системи попередження', 'success');
+            
+        } catch (error) {
+            console.error('Failed to start real data:', error);
+            showNotification('Помилка завантаження даних тривог', 'error');
+            
+            // Fallback на мок-дані
+            this.startMockData();
+        }
+    }
+
+    async fetchAndProcessAlerts() {
+        try {
+            console.log('Fetching alert data from API...');
+            
+            // Отримуємо поточні тривоги
+            const alertsData = await fetchRealAlerts();
+            
+            if (!alertsData || !alertsData.states) {
+                throw new Error('Invalid API response format');
             }
-        });
+            
+            // Обробляємо дані
+            this.handleRealAlertsData(alertsData);
+            
+            // Оновлюємо час останнього оновлення
+            this.lastAlertUpdate = new Date();
+            
+            // Оновлюємо HUD
+            updateHUD({
+                targetCount: this.targetManager.getTargetCount(),
+                lastUpdate: this.lastAlertUpdate.toLocaleTimeString('uk-UA'),
+                connectionStatus: this.getConnectionStatusIcon()
+            });
+            
+        } catch (error) {
+            console.error('Error fetching alerts:', error);
+            throw error;
+        }
+    }
+
+    handleRealAlertsData(alertsData) {
+        console.log('Processing alert data:', alertsData.states?.length || 0, 'regions');
         
-        // Обробка загальних повідомлень
-        this.wsManager.on('message', (message) => {
-            console.log('WebSocket message:', message.type, message);
-        });
+        // Очищаємо попередній стан
+        this.alertRegions.clear();
         
-        // Обробка помилок
-        this.wsManager.on('error', (error) => {
-            console.error('WebSocket error:', error);
-            showNotification('Помилка з\'єднання з сервером', 'error');
-        });
+        // Аналізуємо дані про тривоги
+        const activeAlerts = [];
         
-        // Обробка відключення
-        this.wsManager.on('disconnected', (event) => {
-            console.log('WebSocket disconnected:', event);
-            if (event.code !== 1000) { // Не нормальне закриття
-                showNotification('Втрачено з\'єднання з сервером', 'warning');
+        if (alertsData.states && Array.isArray(alertsData.states)) {
+            alertsData.states.forEach(region => {
+                if (region.alert === true || region.alert === 1) {
+                    this.alertRegions.add(region.name);
+                    activeAlerts.push(region);
+                    
+                    // Додаємо ціль для області з тривогою (для візуалізації)
+                    this.addAlertRegionTarget(region);
+                }
+            });
+        }
+        
+        // Оновлюємо UI з інформацією про тривоги
+        this.updateAlertsDisplay(activeAlerts);
+        
+        // Якщо використовуємо змішаний режим, додаємо мок-цілі в області з тривогою
+        if (this.updateMode === 'mixed' && activeAlerts.length > 0) {
+            this.addSimulatedTargetsInAlertRegions(activeAlerts);
+        }
+        
+        // Сповіщення про зміни
+        if (activeAlerts.length > 0) {
+            this.showAlertNotification(activeAlerts);
+        }
+        
+        return activeAlerts;
+    }
+
+    addAlertRegionTarget(region) {
+        // Створюємо ціль-маркер для області з тривогою
+        const coordinates = this.getRegionCoordinates(region.name);
+        if (!coordinates) return;
+        
+        const targetData = {
+            id: `alert_region_${region.id || region.name}`,
+            type: 'air_alert',
+            name: `Повітряна тривога: ${region.name}`,
+            coordinates: coordinates,
+            region: region.name,
+            status: 'active',
+            timestamp: region.changed || new Date().toISOString(),
+            confidence: 0.95,
+            icon: '⚠️',
+            color: '#e74c3c',
+            isRegionAlert: true // Прапор, що це тривога по області
+        };
+        
+        // Перевіряємо, чи вже існує така ціль
+        const existingTarget = this.targetManager.getTargetById(targetData.id);
+        if (existingTarget) {
+            this.targetManager.updateTarget(targetData.id, targetData);
+        } else {
+            this.targetManager.addTarget(targetData);
+        }
+    }
+
+    addSimulatedTargetsInAlertRegions(activeAlerts) {
+        // Додаємо симульовані цілі тільки в області з активною тривогою
+        activeAlerts.forEach(region => {
+            // Випадково вирішуємо, чи додавати ціль в цю область
+            if (Math.random() > 0.5) {
+                const mockTargets = getMockTargets(1);
+                if (mockTargets.length > 0) {
+                    const target = mockTargets[0];
+                    
+                    // Оновлюємо регіон цілі
+                    target.region = region.name;
+                    
+                    // Генеруємо координати в межах області
+                    const regionCoords = this.getRegionCoordinates(region.name);
+                    if (regionCoords) {
+                        target.coordinates = [
+                            regionCoords[0] + (Math.random() - 0.5) * 0.5,
+                            regionCoords[1] + (Math.random() - 0.5) * 0.5
+                        ];
+                    }
+                    
+                    // Додаємо ціль
+                    this.targetManager.addTarget(target);
+                }
             }
         });
     }
 
-    handleTargetUpdate(targetsData) {
-        if (!targetsData || !Array.isArray(targetsData)) {
-            console.warn('Invalid targets data received:', targetsData);
-            return;
-        }
+    updateAlertsDisplay(activeAlerts) {
+        // Оновлюємо HUD з інформацією про тривоги
+        const alertCount = activeAlerts.length;
         
-        console.log(`Processing ${targetsData.length} targets from server`);
-        
-        // Оновлюємо цілі на мапі
-        this.targetManager.updateFromServer(targetsData);
-        
-        // Оновлюємо список цілей в бічній панелі
-        const activeTargets = this.targetManager.getActiveTargets();
-        updateTargetsList(activeTargets);
-        
-        // Оновлюємо HUD
         updateHUD({
             targetCount: this.targetManager.getTargetCount(),
+            alertCount: alertCount,
             lastUpdate: new Date().toLocaleTimeString('uk-UA'),
             connectionStatus: this.getConnectionStatusIcon()
         });
         
-        // Показуємо сповіщення про нові цілі
-        if (targetsData.length > 0) {
-            this.showTargetUpdateNotification(targetsData);
-        }
+        // Оновлюємо бічну панель
+        const allTargets = this.targetManager.getAllTargets();
+        updateTargetsList(allTargets);
+        
+        // Оновлюємо шари мапи (підсвічування областей)
+        this.updateRegionLayers(activeAlerts);
     }
 
-    updateSystemStatus(statusData) {
-        // Оновлюємо статус системи в HUD
-        updateHUD({
-            connectionStatus: this.getConnectionStatusIcon(),
-            lastUpdate: new Date(statusData.lastUpdate || Date.now()).toLocaleTimeString('uk-UA')
-        });
+    updateRegionLayers(activeAlerts) {
+        // Оновлюємо шари областей на мапі
+        // (цю функцію можна розширити для підсвічування областей)
         
-        // Додаткова логіка обробки статусу системи
-        console.log('System status updated:', statusData);
+        // Приклад: додавання маркерів для областей з тривогою
+        activeAlerts.forEach(region => {
+            const coords = this.getRegionCoordinates(region.name);
+            if (coords) {
+                // Можна додати спеціальні маркери або підсвітити області
+                console.log(`Alert in ${region.name} at ${coords}`);
+            }
+        });
+    }
+
+    showAlertNotification(activeAlerts) {
+        if (activeAlerts.length === 0) return;
+        
+        const regionNames = activeAlerts.map(r => r.name).join(', ');
+        const message = `Повітряна тривога в ${activeAlerts.length} областях: ${regionNames}`;
+        
+        showNotification(message, 'warning');
+        this.playAlertSound();
+    }
+
+    getRegionCoordinates(regionName) {
+        const regionCoords = {
+            'Вінницька область': [49.23, 28.48],
+            'Волинська область': [50.75, 25.34],
+            'Дніпропетровська область': [48.45, 35.05],
+            'Донецька область': [48.02, 37.80],
+            'Житомирська область': [50.25, 28.66],
+            'Закарпатська область': [48.62, 22.29],
+            'Запорізька область': [47.84, 35.14],
+            'Івано-Франківська область': [48.92, 24.71],
+            'Київська область': [50.45, 30.52],
+            'Кіровоградська область': [48.51, 32.26],
+            'Луганська область': [48.57, 39.30],
+            'Львівська область': [49.84, 24.03],
+            'Миколаївська область': [46.98, 31.99],
+            'Одеська область': [46.48, 30.73],
+            'Полтавська область': [49.59, 34.55],
+            'Рівненська область': [50.62, 26.25],
+            'Сумська область': [50.91, 34.80],
+            'Тернопільська область': [49.55, 25.59],
+            'Харківська область': [49.99, 36.23],
+            'Херсонська область': [46.64, 32.62],
+            'Хмельницька область': [49.42, 26.99],
+            'Черкаська область': [49.44, 32.06],
+            'Чернівецька область': [48.29, 25.94],
+            'Чернігівська область': [51.50, 31.30],
+            'м.Київ': [50.45, 30.52],
+            'АР Крим': [45.04, 34.00]
+        };
+        
+        // Спроба знайти координати (з урахуванням можливих варіацій назв)
+        for (const [key, coords] of Object.entries(regionCoords)) {
+            if (regionName.includes(key) || key.includes(regionName)) {
+                return coords;
+            }
+        }
+        
+        return [49.0, 31.5]; // Центр України як fallback
     }
 
     updateConnectionStatus(status) {
+        this.connectionStatus = status;
+        
         const statusEl = document.getElementById('connection-status');
-        if (!statusEl) return;
+        if (statusEl) {
+            statusEl.textContent = this.getConnectionStatusIcon();
+            statusEl.title = `Статус: ${status}`;
+        }
         
-        statusEl.textContent = this.getConnectionStatusIcon();
-        statusEl.title = `Статус: ${status}`;
-        
-        // Оновлюємо HUD
         updateHUD({
             connectionStatus: this.getConnectionStatusIcon()
         });
@@ -210,29 +365,25 @@ class AirAlertApp {
         return icons[this.connectionStatus] || '❓';
     }
 
-    showTargetUpdateNotification(targetsData) {
-        const newTargets = targetsData.filter(target => 
-            target.status === 'active' && 
-            (!target.timestamp || Date.now() - new Date(target.timestamp).getTime() < 60000)
-        );
-        
-        if (newTargets.length > 0) {
-            const targetTypes = [...new Set(newTargets.map(t => t.type))];
-            const message = `Виявлено ${newTargets.length} нових цілей: ${targetTypes.join(', ')}`;
-            
-            showNotification(message, 'warning');
-            
-            // Відтворюємо звукове сповіщення (якщо є)
-            this.playAlertSound();
-        }
-    }
-
     playAlertSound() {
-        // Додайте логіку для відтворення звукового сповіщення
         try {
-            const audio = new Audio('/assets/sounds/alert.mp3');
-            audio.volume = 0.3;
-            audio.play().catch(e => console.log('Audio play failed:', e));
+            // Простий звук сповіщення через Web Audio API
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 800;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 1);
+            
         } catch (error) {
             console.log('Sound alert not available:', error);
         }
@@ -257,25 +408,30 @@ class AirAlertApp {
 
     bindEvents() {
         // Кнопки управління
-        document.getElementById('btn-center').addEventListener('click', () => {
+        document.getElementById('btn-center')?.addEventListener('click', () => {
             this.map.setView([49.0, 31.5], 6);
             showNotification('Мапа центрована на Україні', 'info');
         });
 
-        document.getElementById('btn-simulate').addEventListener('click', () => {
+        document.getElementById('btn-simulate')?.addEventListener('click', () => {
             this.toggleSimulation();
         });
 
-        document.getElementById('btn-panel').addEventListener('click', () => {
+        document.getElementById('btn-panel')?.addEventListener('click', () => {
             this.toggleSidePanel();
         });
 
-        document.getElementById('btn-layers').addEventListener('click', () => {
+        document.getElementById('btn-layers')?.addEventListener('click', () => {
             this.showLayersModal();
         });
 
-        document.getElementById('btn-close-panel').addEventListener('click', () => {
+        document.getElementById('btn-close-panel')?.addEventListener('click', () => {
             this.toggleSidePanel();
+        });
+
+        // Нова кнопка для перемикання режимів
+        document.getElementById('btn-mode')?.addEventListener('click', () => {
+            this.toggleDataMode();
         });
 
         // PWA встановлення
@@ -333,16 +489,27 @@ class AirAlertApp {
                 e.preventDefault();
                 this.toggleSimulation();
             }
+            if (e.key === 'm' && e.ctrlKey) {
+                e.preventDefault();
+                this.toggleDataMode();
+            }
             if (e.key === 'r' && e.ctrlKey) {
                 e.preventDefault();
-                this.reconnectWebSocket();
+                this.refreshAlertsData();
             }
         });
 
-        // Слухач подій WebSocket статусу для UI
-        window.addEventListener('websocket-status', (event) => {
-            this.connectionStatus = event.detail.status;
-            this.updateConnectionStatus(event.detail.status);
+        // Оновлення даних при поверненні онлайн
+        window.addEventListener('online', () => {
+            showNotification('Інтернет-з\'єднання відновлено', 'success');
+            if (this.useRealAPI) {
+                this.refreshAlertsData();
+            }
+        });
+
+        window.addEventListener('offline', () => {
+            showNotification('Втрачено інтернет-з\'єднання', 'warning');
+            this.updateConnectionStatus('disconnected');
         });
     }
 
@@ -350,9 +517,7 @@ class AirAlertApp {
         const btn = document.getElementById('btn-simulate');
         
         if (this.isSimulating) {
-            clearInterval(this.simulationInterval);
-            this.targetManager.clearAllTargets();
-            this.isSimulating = false;
+            this.stopSimulation();
             if (btn) {
                 btn.textContent = '🚀 Тест';
                 btn.style.background = 'linear-gradient(to right, var(--secondary-color), #2c5282)';
@@ -370,7 +535,7 @@ class AirAlertApp {
     }
 
     startSimulation() {
-        // Додаємо початкові цілі
+        // Додаємо симульовані цілі
         const mockTargets = getMockTargets(3);
         mockTargets.forEach(target => {
             this.targetManager.addTarget(target);
@@ -386,26 +551,91 @@ class AirAlertApp {
                 this.targetManager.addTarget(newTarget);
             }
             
-            // Випадково видаляємо старі цілі
-            if (Math.random() > 0.8 && this.targetManager.getTargetCount() > 2) {
-                const targets = this.targetManager.getAllTargets();
-                const targetToRemove = targets[Math.floor(Math.random() * targets.length)];
-                if (targetToRemove) {
-                    this.targetManager.removeTarget(targetToRemove.id);
-                }
+            // Оновлюємо UI
+            this.updateUI();
+            
+        }, 3000);
+    }
+
+    stopSimulation() {
+        if (this.simulationInterval) {
+            clearInterval(this.simulationInterval);
+            this.simulationInterval = null;
+        }
+        
+        // Видаляємо тільки симульовані цілі, залишаючи тривоги областей
+        const allTargets = this.targetManager.getAllTargets();
+        allTargets.forEach(target => {
+            if (target.id.startsWith('mock_')) {
+                this.targetManager.removeTarget(target.id);
             }
-            
-            // Оновлюємо HUD та список цілей
-            updateHUD({
-                targetCount: this.targetManager.getTargetCount(),
-                lastUpdate: new Date().toLocaleTimeString('uk-UA'),
-                connectionStatus: this.getConnectionStatusIcon()
+        });
+        
+        this.isSimulating = false;
+    }
+
+    toggleDataMode() {
+        const modes = ['real', 'mixed', 'mock'];
+        const currentIndex = modes.indexOf(this.updateMode);
+        const nextIndex = (currentIndex + 1) % modes.length;
+        this.updateMode = modes[nextIndex];
+        
+        // Оновлюємо кнопку
+        const btn = document.getElementById('btn-mode');
+        if (btn) {
+            const modeLabels = {
+                'real': '📡 Реальні дані',
+                'mixed': '🔀 Змішаний режим',
+                'mock': '🚀 Тестовий режим'
+            };
+            btn.textContent = modeLabels[this.updateMode];
+        }
+        
+        showNotification(`Режим оновлено: ${this.updateMode}`, 'info');
+        
+        // Перезапускаємо відповідний режим
+        if (this.updateMode === 'real' || this.updateMode === 'mixed') {
+            if (this.realDataInterval) {
+                clearInterval(this.realDataInterval);
+            }
+            this.startRealData();
+        } else {
+            if (this.realDataInterval) {
+                clearInterval(this.realDataInterval);
+                this.realDataInterval = null;
+            }
+            this.startMockData();
+        }
+    }
+
+    startMockData() {
+        // Очищаємо попередні цілі
+        this.targetManager.clearAllTargets();
+        
+        // Імітація WebSocket з'єднання з мок-даними
+        const stopSimulation = simulateWebSocket((data) => {
+            if (data.type === 'target_update') {
+                const mockTargets = data.targets || [];
+                this.targetManager.updateFromServer(mockTargets);
+                this.updateUI();
+            }
+        });
+        
+        // Зберігаємо функцію зупинки
+        this.stopMockData = stopSimulation;
+        
+        this.updateConnectionStatus('connected');
+        showNotification('Тестовий режим активовано', 'info');
+    }
+
+    refreshAlertsData() {
+        if (this.useRealAPI) {
+            showNotification('Оновлення даних тривог...', 'info');
+            this.fetchAndProcessAlerts().catch(error => {
+                console.error('Refresh failed:', error);
+                showNotification('Помилка оновлення даних', 'error');
             });
-            
-            const activeTargets = this.targetManager.getActiveTargets();
-            updateTargetsList(activeTargets);
-            
-        }, 3000); // Оновлення кожні 3 секунди
+        }
     }
 
     toggleSidePanel(forceState = null) {
@@ -421,14 +651,28 @@ class AirAlertApp {
             btn.textContent = '✖️ Закрити';
             btn.style.background = 'linear-gradient(to right, #d84315, #ff5722)';
             
-            // Оновлюємо список цілей при відкритті панелі
-            const activeTargets = this.targetManager.getActiveTargets();
-            updateTargetsList(activeTargets);
+            // Оновлюємо список при відкритті
+            this.updateTargetsList();
         } else {
             panel.classList.remove('active');
             btn.textContent = '📊 Список';
             btn.style.background = 'linear-gradient(to right, var(--secondary-color), #2c5282)';
         }
+    }
+
+    updateTargetsList() {
+        const allTargets = this.targetManager.getAllTargets();
+        updateTargetsList(allTargets);
+    }
+
+    updateUI() {
+        updateHUD({
+            targetCount: this.targetManager.getTargetCount(),
+            lastUpdate: new Date().toLocaleTimeString('uk-UA'),
+            connectionStatus: this.getConnectionStatusIcon()
+        });
+        
+        this.updateTargetsList();
     }
 
     showLayersModal() {
@@ -438,59 +682,25 @@ class AirAlertApp {
         }
     }
 
-    startMockData() {
-        // Імітація WebSocket з'єднання з мок-даними
-        simulateWebSocket((data) => {
-            if (data.type === 'target_update') {
-                this.handleTargetUpdate(data.targets || []);
-            }
-        });
-    }
-
-    reconnectWebSocket() {
-        if (this.wsManager) {
-            showNotification('Перепідключення до сервера...', 'info');
-            this.wsManager.disconnect();
-            
-            // Запускаємо перепідключення через 1 секунду
-            setTimeout(() => {
-                if (this.wsManager.connect) {
-                    this.wsManager.connect(this.wsManager.url).catch(error => {
-                        console.error('Reconnection failed:', error);
-                    });
-                }
-            }, 1000);
-        } else {
-            showNotification('WebSocket не ініціалізовано', 'warning');
-        }
-    }
-
-    // Додаткові методи для управління WebSocket
-    sendWebSocketMessage(type, data = {}) {
-        if (this.wsManager && this.wsManager.send) {
-            return this.wsManager.send(type, data);
-        }
-        return false;
-    }
-
-    getWebSocketStatus() {
-        return this.connectionStatus;
-    }
-
-    // Метод для зміни режиму (мок/реальний сервер)
-    setServerMode(useMock) {
-        this.useMockServer = useMock;
-        
-        if (this.wsManager) {
-            this.wsManager.disconnect();
-            this.wsManager = null;
+    // Очищення ресурсів
+    destroy() {
+        if (this.simulationInterval) {
+            clearInterval(this.simulationInterval);
         }
         
-        if (!useMock) {
-            this.initWebSocket();
-        } else {
-            showNotification('Режим тестування активовано', 'info');
+        if (this.realDataInterval) {
+            clearInterval(this.realDataInterval);
         }
+        
+        if (this.stopMockData) {
+            this.stopMockData();
+        }
+        
+        if (this.targetManager) {
+            this.targetManager.destroy();
+        }
+        
+        console.log('AirAlertApp destroyed');
     }
 }
 
@@ -507,33 +717,9 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
             .then(registration => {
                 console.log('ServiceWorker registered:', registration);
-                
-                // Оновлення Service Worker
-                registration.addEventListener('updatefound', () => {
-                    const newWorker = registration.installing;
-                    console.log('New Service Worker found:', newWorker);
-                    
-                    newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            showNotification('Доступне оновлення додатку', 'info');
-                        }
-                    });
-                });
             })
             .catch(error => {
                 console.log('ServiceWorker registration failed:', error);
             });
     });
 }
-
-// Обробка офлайн/онлайн статусу
-window.addEventListener('online', () => {
-    showNotification('Інтернет-з\'єднання відновлено', 'success');
-    if (app.wsManager && app.getWebSocketStatus() === 'disconnected') {
-        app.reconnectWebSocket();
-    }
-});
-
-window.addEventListener('offline', () => {
-    showNotification('Втрачено інтернет-з\'єднання', 'warning');
-});
