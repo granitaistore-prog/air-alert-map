@@ -1,5 +1,20 @@
 {
   "name": "air-alert-map",
   "version": "1.0.0",
-  "type": "module"
+  "description": "PWA для відстеження повітряних цілей в Україні",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "live-server --port=3000",
+    "build": "echo 'Building project...'",
+    "test": "echo 'No tests specified'"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4"
+  },
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  },
+  "keywords": ["pwa", "ukraine", "air-alert", "map"],
+  "author": "Your Name",
+  "license": "MIT"
 }
