@@ -2,6 +2,7 @@ import { initMap, changeBaseLayer } from './map/mapInit.js';
 import { initLayers } from './map/layers.js';
 import { initRadar } from './map/radarOverlay.js';
 import { TargetManager } from './targets/targetManager.js';
+import { PowerOutageManager } from './svitlo/outageManager.js';
 import { initHUD, updateHUD } from './ui/hud.js';
 import { initPanels, updateTargetsList, updateAlertsList, updateAPIInfo } from './ui/panels.js';
 import { showNotification } from './ui/notifications.js';
@@ -20,6 +21,7 @@ class AirAlertApp {
     constructor() {
         this.map = null;
         this.targetManager = null;
+        this.outageManager = null;
         this.isPanelOpen = false;
         this.connectionStatus = 'connecting';
         this.activeAlerts = [];
@@ -46,7 +48,10 @@ class AirAlertApp {
             initRadar(this.map);
             await this.showLoading(70, 'Підключення до систем тривог...');
             
+            // Ініціалізація менеджерів
             this.targetManager = new TargetManager(this.map);
+            this.outageManager = new PowerOutageManager(this.map);
+            
             initHUD();
             initPanels();
             
@@ -63,6 +68,9 @@ class AirAlertApp {
             
             // Запуск оновлення даних
             this.startDataUpdates();
+            
+            // Запуск оновлення відключень світла
+            this.outageManager.startUpdates(5); // Кожні 5 хвилин
             
             await this.showLoading(100, 'Завершення ініціалізації...');
             this.hideLoading();
@@ -436,6 +444,11 @@ class AirAlertApp {
             this.manualUpdate();
         });
 
+        // Нова кнопка для відключень світла
+        document.getElementById('btn-power-outages')?.addEventListener('click', () => {
+            this.togglePowerOutages();
+        });
+
         // PWA встановлення
         let deferredPrompt;
         const installButton = document.getElementById('btn-install');
@@ -514,6 +527,10 @@ class AirAlertApp {
                 e.preventDefault();
                 this.toggleFullscreen();
             }
+            if (e.key === 'p' && e.ctrlKey) {
+                e.preventDefault();
+                this.togglePowerOutages();
+            }
         });
 
         // Офлайн/онлайн
@@ -522,6 +539,9 @@ class AirAlertApp {
             this.connectionStatus = 'connected';
             this.updateConnectionStatus();
             this.startDataUpdates();
+            if (this.outageManager) {
+                this.outageManager.startUpdates(5);
+            }
         });
 
         window.addEventListener('offline', () => {
@@ -534,6 +554,9 @@ class AirAlertApp {
             }
             if (this.updateTimer) {
                 clearInterval(this.updateTimer);
+            }
+            if (this.outageManager) {
+                this.outageManager.stopUpdates();
             }
         });
     }
@@ -557,6 +580,19 @@ class AirAlertApp {
             panel.classList.remove('active');
             btn.textContent = '📢 Тривоги';
             btn.style.background = 'linear-gradient(135deg, var(--secondary-color), #2c5282)';
+        }
+    }
+
+    togglePowerOutages() {
+        if (this.outageManager) {
+            const isVisible = this.outageManager.isLayerVisible();
+            if (isVisible) {
+                this.outageManager.hideLayer();
+                showNotification('Відключення світла приховано', 'info');
+            } else {
+                this.outageManager.showLayer();
+                showNotification('Відключення світла показано', 'info');
+            }
         }
     }
 
@@ -611,6 +647,11 @@ class AirAlertApp {
     manualUpdate() {
         showNotification('Оновлення даних...', 'info');
         this.updateAlertData();
+        
+        // Також оновлюємо відключення світла
+        if (this.outageManager) {
+            this.outageManager.updateOutages();
+        }
     }
 
     // Деструктор для очищення ресурсів
@@ -625,6 +666,10 @@ class AirAlertApp {
         
         if (this.targetManager) {
             this.targetManager.destroy();
+        }
+        
+        if (this.outageManager) {
+            this.outageManager.destroy();
         }
         
         console.log('AirAlertApp destroyed');
@@ -668,8 +713,35 @@ function convertAlertsToTargets(alertsData) {
 
 function getRegionCoordinatesMap() {
     // Повертає мапу координат (як у попередній версії)
-    // ...
-    return {};
+    return {
+        'Вінницька область': [49.23, 28.48],
+        'Харківська область': [49.99, 36.23],
+        'Київська область': [50.45, 30.52],
+        'Одеська область': [46.48, 30.73],
+        'Львівська область': [49.84, 24.03],
+        'Дніпропетровська область': [48.45, 35.05],
+        'Запорізька область': [47.84, 35.14],
+        'Донецька область': [48.02, 37.80],
+        'Луганська область': [48.57, 39.30],
+        'Миколаївська область': [46.98, 31.99],
+        'Херсонська область': [46.64, 32.62],
+        'Полтавська область': [49.59, 34.55],
+        'Чернігівська область': [51.50, 31.30],
+        'Черкаська область': [49.44, 32.06],
+        'Сумська область': [50.91, 34.80],
+        'Житомирська область': [50.25, 28.66],
+        'Хмельницька область': [49.42, 26.99],
+        'Чернівецька область': [48.29, 25.94],
+        'Тернопільська область': [49.55, 25.59],
+        'Рівненська область': [50.62, 26.25],
+        'Івано-Франківська область': [48.92, 24.71],
+        'Волинська область': [50.75, 25.34],
+        'Закарпатська область': [48.62, 22.29],
+        'Кіровоградська область': [48.51, 32.26],
+        'м.Київ': [50.45, 30.52],
+        'м.Севастополь': [44.61, 33.52],
+        'АР Крим': [45.04, 34.00]
+    };
 }
 
 // Запуск додатку
