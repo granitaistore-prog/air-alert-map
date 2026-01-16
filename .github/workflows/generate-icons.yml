@@ -1,0 +1,78 @@
+name: Generate PWA Icons
+
+on:
+  push:
+    paths:
+      - 'assets/icon.svg'
+  workflow_dispatch:  # Ручний запуск
+
+jobs:
+  generate-icons:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Install dependencies
+      run: |
+        npm init -y
+        npm install sharp
+    
+    - name: Create icons directory
+      run: mkdir -p assets/icons
+    
+    - name: Generate icons
+      run: |
+        node -e "
+        const sharp = require('sharp');
+        const fs = require('fs');
+        const svg = fs.readFileSync('assets/icon.svg');
+        
+        const sizes = [72, 96, 128, 144, 192, 256, 384, 512];
+        
+        async function generateIcons() {
+          for (const size of sizes) {
+            await sharp(svg)
+              .resize(size, size)
+              .png()
+              .toFile(\`assets/icons/icon-\${size}.png\`);
+            console.log(\`Generated icon-\${size}.png\`);
+          }
+          
+          // Favicon
+          await sharp(svg)
+            .resize(32, 32)
+            .png()
+            .toFile('assets/icons/favicon.png');
+          
+          // Maskable icon (80% safe zone)
+          const maskableSvg = \`<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+          <svg width=\"512\" height=\"512\" viewBox=\"0 0 512 512\" fill=\"none\">
+            <circle cx=\"256\" cy=\"256\" r=\"230\" fill=\"#0A1F3A\"/>
+            <circle cx=\"256\" cy=\"256\" r=\"184\" fill=\"#005BBB\"/>
+            <rect x=\"102\" y=\"256\" width=\"308\" height=\"128\" fill=\"#FFD500\"/>
+            <path d=\"M256 128C196 128 148 176 148 236C148 296 256 384 256 384C256 384 364 296 364 236C364 176 316 128 256 128Z\" fill=\"#0A1F3A\" stroke=\"white\" stroke-width=\"10\"/>
+            <path d=\"M256 192L224 256H288L240 352L320 256H256L256 192Z\" fill=\"#FFD500\"/>
+          </svg>\`;
+          
+          await sharp(Buffer.from(maskableSvg))
+            .resize(512, 512)
+            .png()
+            .toFile('assets/icons/maskable-icon.png');
+        }
+        
+        generateIcons().catch(console.error);
+        "
+    
+    - name: Commit generated icons
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add assets/icons/
+        git commit -m "Auto-generate PWA icons" || echo "No changes to commit"
+        git push
