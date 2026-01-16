@@ -1,1 +1,365 @@
-html,body,#map{margin:0;height:100%;background:#061826;} #hud{position:fixed;top:10px;left:10px;color:#0f0;}
+/* Базові стилі */
+:root {
+    --primary-color: #0a1f3a;
+    --secondary-color: #1a3a5f;
+    --accent-color: #2ecc71;
+    --danger-color: #e74c3c;
+    --warning-color: #f39c12;
+    --text-primary: #ffffff;
+    --text-secondary: #bbdefb;
+    --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    --border-radius: 10px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--primary-color);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Хедер */
+.app-header {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--accent-color);
+    box-shadow: var(--shadow);
+    position: relative;
+    z-index: 1000;
+}
+
+.header-content h1 {
+    font-size: 1.4rem;
+    margin-bottom: 5px;
+}
+
+.subtitle {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.btn-install {
+    background: linear-gradient(to right, #2e7d32, #4caf50);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-weight: bold;
+    transition: transform 0.2s;
+}
+
+.btn-install:hover {
+    transform: translateY(-2px);
+}
+
+/* Контейнер */
+.app-container {
+    height: calc(100vh - 120px);
+    position: relative;
+}
+
+/* Мапа */
+.map-container {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* HUD панель */
+.hud-panel {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(10, 31, 58, 0.92);
+    backdrop-filter: blur(10px);
+    padding: 15px 25px;
+    border-radius: var(--border-radius);
+    border: 2px solid var(--accent-color);
+    z-index: 900;
+    min-width: 400px;
+    box-shadow: var(--shadow);
+}
+
+.hud-stats {
+    display: flex;
+    justify-content: space-around;
+    gap: 30px;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--accent-color);
+    text-shadow: 0 0 10px rgba(46, 204, 113, 0.5);
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* Бічна панель */
+.side-panel {
+    position: absolute;
+    top: 100px;
+    right: 20px;
+    width: 350px;
+    height: calc(100vh - 200px);
+    background: rgba(10, 31, 58, 0.95);
+    border-radius: var(--border-radius);
+    border: 2px solid var(--warning-color);
+    z-index: 900;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
+    transform: translateX(400px);
+    transition: transform 0.3s ease;
+}
+
+.side-panel.active {
+    transform: translateX(0);
+}
+
+.panel-header {
+    padding: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0 10px;
+}
+
+.targets-list {
+    padding: 15px;
+    height: calc(100% - 60px);
+    overflow-y: auto;
+}
+
+.target-item {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-left: 4px solid var(--danger-color);
+}
+
+.target-type {
+    font-weight: bold;
+    color: var(--danger-color);
+    margin-bottom: 5px;
+}
+
+.target-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* Контрольна панель */
+.control-panel {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 15px;
+    z-index: 900;
+    background: rgba(10, 31, 58, 0.9);
+    padding: 15px;
+    border-radius: var(--border-radius);
+    backdrop-filter: blur(10px);
+}
+
+.control-btn {
+    background: linear-gradient(to right, var(--secondary-color), #2c5282);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    min-width: 120px;
+    transition: all 0.2s;
+}
+
+.control-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Модальне вікно */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--primary-color);
+    border-radius: var(--border-radius);
+    width: 90%;
+    max-width: 500px;
+    border: 2px solid var(--accent-color);
+}
+
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.layer-option {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Екран завантаження */
+.loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--primary-color);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 3000;
+}
+
+.spinner {
+    border: 5px solid rgba(46, 204, 113, 0.3);
+    border-top: 5px solid var(--accent-color);
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+}
+
+.loading-progress {
+    color: var(--accent-color);
+    font-weight: bold;
+}
+
+/* Футер */
+.app-footer {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 10px 20px;
+    text-align: center;
+    position: relative;
+    z-index: 1000;
+}
+
+.warning-badge {
+    display: inline-block;
+    background: var(--danger-color);
+    color: white;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    margin-bottom: 5px;
+}
+
+.footer-text {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* Адаптивність */
+@media (max-width: 768px) {
+    .hud-panel {
+        min-width: 300px;
+        padding: 10px 15px;
+    }
+    
+    .hud-stats {
+        gap: 15px;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+    }
+    
+    .side-panel {
+        width: 100%;
+        height: 50vh;
+        top: auto;
+        bottom: 0;
+        right: 0;
+        transform: translateY(100%);
+    }
+    
+    .side-panel.active {
+        transform: translateY(0);
+    }
+    
+    .control-panel {
+        flex-wrap: wrap;
+        justify-content: center;
+        width: 90%;
+    }
+    
+    .control-btn {
+        min-width: 45%;
+        padding: 10px;
+    }
+}
