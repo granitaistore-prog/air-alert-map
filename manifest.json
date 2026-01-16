@@ -1,20 +1,17 @@
 {
-  "name": "Тривоги України",
+  "name": "Тривоги та Світло України",
   "short_name": "Тривоги",
-  "description": "PWA додаток для моніторингу повітряних тривог",
+  "description": "PWA додаток для моніторингу повітряних тривог та відключень світла",
   "start_url": "/",
   "display": "standalone",
-  "display_override": ["standalone", "window-controls-overlay"],
   "background_color": "#0a1f3a",
   "theme_color": "#0a1f3a",
   "orientation": "portrait-primary",
-  "scope": "/",
   "icons": [
     {
       "src": "assets/icons/icon-72.png",
       "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "assets/icons/icon-96.png",
@@ -32,42 +29,25 @@
       "type": "image/png"
     },
     {
+      "src": "assets/icons/icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png"
+    },
+    {
       "src": "assets/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
+      "src": "assets/icons/icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png"
+    },
+    {
       "src": "assets/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
-  ],
-  "screenshots": [
-    {
-      "src": "assets/screenshot-mobile.png",
-      "sizes": "1080x1920",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Головний екран додатку"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Переглянути тривоги",
-      "short_name": "Тривоги",
-      "description": "Відкрити список активних тривог",
-      "url": "/?action=alerts",
-      "icons": [
-        {
-          "src": "assets/icons/alert-icon.png",
-          "sizes": "96x96"
-        }
-      ]
-    }
-  ],
-  "categories": ["navigation", "weather"],
-  "edge_side_panel": {
-    "preferred_width": 360
-  }
+  ]
 }
