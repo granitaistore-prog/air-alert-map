@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PWA Icon Generator - Air Alert</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; }
+        h1 { margin-bottom: 20px; color: #0A1F3A; }
+        .preview { text-align: center; margin: 20px 0; }
+        canvas { border: 1px solid #ddd; margin: 10px; }
+        .sizes { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+        .size-item { border: 1px solid #ddd; padding: 10px; border-radius: 5px; text-align: center; }
+        .buttons { margin-top: 20px; }
+        button { padding: 10px 20px; margin-right: 10px; background: #005BBB; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #004499; }
+        .download-all { background: #FFD500; color: #0A1F3A; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ Генератор іконок для PWA додатку</h1>
+        
+        <div class="preview">
+            <canvas id="previewCanvas" width="512" height="512"></canvas>
+        </div>
+        
+        <div class="sizes" id="sizesContainer">
+            <!-- Розміри будуть додані через JS -->
+        </div>
+        
+        <div class="buttons">
+            <button onclick="generateAllIcons()">Створити всі іконки</button>
+            <button class="download-all" onclick="downloadAll()">📥 Завантажити ZIP</button>
+            <button onclick="copyToClipboard()">📋 Копіювати SVG</button>
+        </div>
+        
+        <div style="margin-top: 30px; padding: 20px; background: #f0f8ff; border-radius: 5px;">
+            <h3>Інструкція:</h3>
+            <ol style="margin-left: 20px; margin-top: 10px;">
+                <li>Натисніть "Створити всі іконки"</li>
+                <li>Завантажте ZIP архів з іконками</li>
+                <li>Розпакуйте в папку <code>assets/icons/</code></li>
+                <li>Оновіть <code>manifest.json</code></li>
+            </ol>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <script>
+        const sizes = [
+            { name: 'icon-72', size: 72 },
+            { name: 'icon-96', size: 96 },
+            { name: 'icon-128', size: 128 },
+            { name: 'icon-144', size: 144 },
+            { name: 'icon-192', size: 192 },
+            { name: 'icon-256', size: 256 },
+            { name: 'icon-384', size: 384 },
+            { name: 'icon-512', size: 512 },
+            { name: 'maskable-icon', size: 512, maskable: true },
+            { name: 'favicon', size: 32 }
+        ];
+
+        const svgCode = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="512" height="512" rx="256" fill="#0A1F3A"/>
+    <rect x="51.2" y="51.2" width="409.6" height="409.6" rx="204.8" fill="#005BBB"/>
+    <rect x="51.2" y="307.2" width="409.6" height="153.6" fill="#FFD500"/>
+    <path d="M256 102.4C181.76 102.4 121.6 162.56 121.6 236.8C121.6 311.04 256 409.6 256 409.6C256 409.6 390.4 311.04 390.4 236.8C390.4 162.56 330.24 102.4 256 102.4Z" fill="#0A1F3A" stroke="white" stroke-width="12.8"/>
+    <path d="M256 179.2L204.8 281.6H307.2L230.4 409.6L358.4 256H256L256 179.2Z" fill="#FFD500"/>
+    <rect x="6.4" y="6.4" width="499.2" height="499.2" rx="249.6" stroke="white" stroke-width="12.8" fill="none"/>
+</svg>`;
+
+        // Ініціалізація прев'ю
+        const previewCanvas = document.getElementById('previewCanvas');
+        const ctx = previewCanvas.getContext('2d');
+        
+        // Створюємо список розмірів
+        const sizesContainer = document.getElementById('sizesContainer');
+        sizes.forEach(size => {
+            const div = document.createElement('div');
+            div.className = 'size-item';
+            div.innerHTML = `
+                <div style="font-weight: bold; margin-bottom: 5px;">${size.name}</div>
+                <div>${size.size}×${size.size}px</div>
+                <canvas id="canvas-${size.name}" width="${size.size}" height="${size.size}" 
+                        style="width: 50px; height: 50px; margin-top: 5px;"></canvas>
+            `;
+            sizesContainer.appendChild(div);
+        });
+
+        // Функція малювання іконки
+        function drawIcon(ctx, size, isMaskable = false) {
+            const scale = size / 512;
+            ctx.clearRect(0, 0, size, size);
+            
+            // Для маскованих іконок - круглий фон з safe zone
+            if (isMaskable) {
+                ctx.fillStyle = '#0A1F3A';
+                ctx.beginPath();
+                ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Безпечна зона (80%)
+                const safeSize = size * 0.8;
+                const safeX = (size - safeSize) / 2;
+                const safeY = (size - safeSize) / 2;
+                
+                // Малюємо всередині safe zone
+                ctx.save();
+                ctx.translate(safeX, safeY);
+                size = safeSize;
+            }
+            
+            // Основний дизайн
+            const center = size / 2;
+            
+            // Синій фон
+            ctx.fillStyle = '#005BBB';
+            ctx.beginPath();
+            ctx.arc(center, center, size * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Жовта смуга
+            ctx.fillStyle = '#FFD500';
+            ctx.fillRect(size * 0.1, center, size * 0.8, size * 0.3);
+            
+            // Щит
+            ctx.fillStyle = '#0A1F3A';
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 12.8 * scale;
+            
+            ctx.beginPath();
+            const shieldSize = size * 0.35;
+            ctx.moveTo(center, size * 0.2);
+            ctx.bezierCurveTo(
+                size * 0.3, size * 0.2,
+                size * 0.2, size * 0.35,
+                size * 0.2, size * 0.46
+            );
+            ctx.bezierCurveTo(
+                size * 0.2, size * 0.6,
+                center, size * 0.75,
+                center, size * 0.75
+            );
+            ctx.bezierCurveTo(
+                center, size * 0.75,
+                size * 0.8, size * 0.6,
+                size * 0.8, size * 0.46
+            );
+            ctx.bezierCurveTo(
+                size * 0.8, size * 0.35,
+                size * 0.7, size * 0.2,
+                center, size * 0.2
+            );
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            // Молнія
+            ctx.fillStyle = '#FFD500';
+            ctx.beginPath();
+            ctx.moveTo(center, size * 0.35);
+            ctx.lineTo(size * 0.4, size * 0.55);
+            ctx.lineTo(size * 0.6, size * 0.55);
+            ctx.lineTo(size * 0.45, size * 0.8);
+            ctx.lineTo(size * 0.7, size * 0.5);
+            ctx.lineTo(size * 0.5, size * 0.5);
+            ctx.lineTo(center, size * 0.35);
+            ctx.closePath();
+            ctx.fill();
+            
+            if (isMaskable) {
+                ctx.restore();
+            }
+            
+            // Контур
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 6.4 * scale;
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2 - ctx.lineWidth/2, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Генерація всіх іконок
+        function generateAllIcons() {
+            sizes.forEach(size => {
+                const canvas = document.getElementById(`canvas-${size.name}`);
+                const ctx = canvas.getContext('2d');
+                drawIcon(ctx, size.size, size.maskable);
+            });
+            
+            // Прев'ю
+            drawIcon(previewCanvas.getContext('2d'), 512);
+            
+            alert('Іконки створені! Тепер натисніть "Завантажити ZIP"');
+        }
+
+        // Завантаження всіх іконок як ZIP
+        async function downloadAll() {
+            const zip = new JSZip();
+            const iconsFolder = zip.folder("icons");
+            
+            // Додаємо SVG
+            iconsFolder.file("icon.svg", svgCode);
+            
+            // Додаємо всі PNG
+            sizes.forEach(size => {
+                const canvas = document.getElementById(`canvas-${size.name}`);
+                const dataUrl = canvas.toDataURL("image/png");
+                const base64 = dataUrl.split(',')[1];
+                iconsFolder.file(`${size.name}.png`, base64, {base64: true});
+            });
+            
+            // Створюємо readme
+            const readme = `# Іконки для PWA додатку "Повітряна тривога Україна"
+
+## Розміри:
+- icon-192.png - основна для Android
+- icon-512.png - основна для iOS  
+- maskable-icon.png - для адаптивних іконок Android
+- favicon.png - для браузера
+
+## Використання:
+1. Помістіть всі файли в папку assets/icons/
+2. Оновіть manifest.json
+3. Перезавантажте додаток
+
+## Генерація:
+Ці іконки згенеровані за допомогою generate-icons.html`;
+            
+            iconsFolder.file("README.txt", readme);
+            
+            // Генеруємо та завантажуємо ZIP
+            const content = await zip.generateAsync({type: "blob"});
+            saveAs(content, "air-alert-icons.zip");
+        }
+
+        // Копіювання SVG в буфер обміну
+        function copyToClipboard() {
+            navigator.clipboard.writeText(svgCode).then(() => {
+                alert('SVG код скопійовано в буфер обміну!');
+            });
+        }
+
+        // Автоматично генеруємо при завантаженні
+        window.onload = generateAllIcons;
+    </script>
+</body>
+</html>
