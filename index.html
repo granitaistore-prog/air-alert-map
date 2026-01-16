@@ -1,17 +1,124 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
-<meta charset="UTF-8">
-<title>Air Alert Map</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="assets/styles.css">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a1f3a">
+    <title>Повітряна тривога | Україна</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="assets/styles.css">
+    <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg">
 </head>
 <body>
-<div id="map"></div>
-<div id="hud"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module" src="src/main.js"></script>
+    <!-- Хедер -->
+    <header class="app-header">
+        <div class="header-content">
+            <h1>🛡️ ПОВІТРЯНА ТРИВОГА | УКРАЇНА</h1>
+            <div class="subtitle">Режим моніторингу | PWA додаток</div>
+        </div>
+        <div class="header-controls">
+            <button id="btn-install" class="btn-install" title="Встановити додаток">
+                📲 Встановити
+            </button>
+        </div>
+    </header>
+
+    <!-- Головний контейнер -->
+    <main class="app-container">
+        <!-- Мапа -->
+        <div id="map" class="map-container"></div>
+        
+        <!-- HUD панель -->
+        <div id="hud" class="hud-panel">
+            <div class="hud-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="target-count">0</div>
+                    <div class="stat-label">активних цілей</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="last-update">--:--</div>
+                    <div class="stat-label">оновлено</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="connection-status">🟢</div>
+                    <div class="stat-label">з'єднання</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Бічна панель -->
+        <aside id="side-panel" class="side-panel">
+            <div class="panel-header">
+                <h3>📋 Активні цілі</h3>
+                <button id="btn-close-panel" class="btn-close">×</button>
+            </div>
+            <div id="targets-list" class="targets-list">
+                <div class="empty-state">Немає активних цілей</div>
+            </div>
+        </aside>
+
+        <!-- Контрольна панель -->
+        <div class="control-panel">
+            <button id="btn-center" class="control-btn" title="Центрувати мапу">
+                🎯 Центрувати
+            </button>
+            <button id="btn-simulate" class="control-btn" title="Тестова симуляція">
+                🚀 Тест
+            </button>
+            <button id="btn-layers" class="control-btn" title="Шари мапи">
+                🗺️ Шари
+            </button>
+            <button id="btn-panel" class="control-btn" title="Панель цілей">
+                📊 Список
+            </button>
+        </div>
+
+        <!-- Модальне вікно налаштувань -->
+        <div id="modal-layers" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Налаштування шару мапи</h3>
+                    <button class="btn-close">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="layer-option">
+                        <input type="radio" id="layer-dark" name="map-layer" checked>
+                        <label for="layer-dark">Темна мапа</label>
+                    </div>
+                    <div class="layer-option">
+                        <input type="radio" id="layer-satellite" name="map-layer">
+                        <label for="layer-satellite">Супутникові знімки</label>
+                    </div>
+                    <div class="layer-option">
+                        <input type="radio" id="layer-terrain" name="map-layer">
+                        <label for="layer-terrain">Рельєф</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Екран завантаження -->
+        <div id="loading-screen" class="loading-screen">
+            <div class="spinner"></div>
+            <div class="loading-text">Ініціалізація системи моніторингу...</div>
+            <div class="loading-progress" id="loading-progress">0%</div>
+        </div>
+    </main>
+
+    <!-- Футер -->
+    <footer class="app-footer">
+        <div class="footer-info">
+            <div class="warning-badge">⚠️ ТЕСТОВА ВЕРСІЯ</div>
+            <div class="footer-text">
+                Дані симульовані. Для реальних сповіщень використовуйте офіційні джерела.
+                <span id="app-version">v1.0.0</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="src/main.js"></script>
 </body>
 </html>
