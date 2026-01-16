@@ -1,58 +1,67 @@
-// src/svitlo/outageManager.js
-import SvitloAPI from './svitloAPI.js';
-
 export class PowerOutageManager {
     constructor(map) {
         this.map = map;
-        this.outageLayer = L.layerGroup().addTo(map);
-        this.svitloAPI = new SvitloAPI({
-            region: 'kharkivska',
-            queue: 'queue1'
-        });
-        this.updateInterval = null;
+        this.outageLayer = null;
+        this.outageMarkers = [];
     }
     
-    async updateOutages() {
+    async showLayer() {
+        // Завантажуємо реальні дані
+        const outages = await this.fetchOutages();
+        
+        // Відображаємо на карті
+        this.displayOutages(outages);
+    }
+    
+    async fetchOutages() {
         try {
-            this.outageLayer.clearLayers();
-            const outages = await this.svitloAPI.getAllActiveOutages();
-            
-            outages.forEach(outage => {
-                const marker = L.marker(outage.coordinates, {
-                    icon: L.divIcon({
-                        html: `<div style="background: ${outage.color}; ...">${outage.icon}</div>`,
-                        iconSize: [32, 32],
-                        iconAnchor: [16, 16]
-                    })
-                }).addTo(this.outageLayer);
-                
-                marker.bindPopup(`<div>${outage.name}</div>`);
-            });
-            
-            return outages.length;
+            // Тут має бути виклик реального API
+            const response = await fetch('https://ваш-api-світла.com/data');
+            return await response.json();
         } catch (error) {
-            console.error('Power outage update failed:', error);
-            return 0;
+            console.error('Помилка завантаження даних про світло:', error);
+            return [];
         }
     }
     
-    startUpdates(intervalMinutes = 5) {
-        this.updateOutages();
-        this.updateInterval = setInterval(() => {
-            this.updateOutages();
-        }, intervalMinutes * 60 * 1000);
+    displayOutages(outages) {
+        // Видалити старі маркери
+        this.clearLayer();
+        
+        // Додати нові
+        outages.forEach(outage => {
+            const marker = this.createOutageMarker(outage);
+            this.outageMarkers.push(marker);
+            marker.addTo(this.map);
+        });
     }
     
-    stopUpdates() {
-        if (this.updateInterval) {
-            clearInterval(this.updateInterval);
-            this.updateInterval = null;
-        }
+    createOutageMarker(outage) {
+        // Маркер з кольором за статусом
+        const colors = {
+            'no_power': '#e74c3c',    // червоний - немає світла
+            'partial': '#f39c12',     // жовтий - часткове
+            'scheduled': '#3498db',   // синій - за графіком
+            'normal': '#2ecc71'       // зелений - є світло
+        };
+        
+        return L.circleMarker(outage.coords, {
+            color: colors[outage.status] || '#95a5a6',
+            fillColor: colors[outage.status] || '#95a5a6',
+            fillOpacity: 0.6,
+            radius: 12
+        }).bindPopup(this.createPopup(outage));
     }
     
-    destroy() {
-        this.stopUpdates();
-        this.outageLayer.clearLayers();
-        this.map.removeLayer(this.outageLayer);
+    createPopup(outage) {
+        return `
+            <div style="min-width: 200px;">
+                <strong>${outage.region}</strong><br>
+                Статус: ${this.getStatusText(outage.status)}<br>
+                Район: ${outage.district}<br>
+                Тривалість: ${outage.duration || "невідомо"}<br>
+                <small>Оновлено: ${new Date().toLocaleTimeString()}</small>
+            </div>
+        `;
     }
 }
