@@ -1,119 +1,137 @@
-export class AirTarget {
-    constructor(data) {
-        this.id = data.id || `target_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        this.type = data.type || 'unknown';
-        this.coordinates = data.coordinates || [49.0, 31.5];
-        this.speed = data.speed || 0; // км/год
-        this.altitude = data.altitude || 0; // метри
-        this.direction = data.direction || 0; // градуси
-        this.region = data.region || 'Не визначено';
-        this.distance = data.distance || 0; // км
-        this.timestamp = data.timestamp || new Date().toISOString();
-        this.status = data.status || 'active'; // active, destroyed, passed
-        this.confidence = data.confidence || 0.8; // впевненість у данних 0-1
-        this.vector = data.vector || { dx: 0, dy: 0 };
-        this.marker = null;
-        this.trajectory = [];
+import { AirTarget } from './targetModel.js';
+import { renderTarget, updateTargetMarker, removeTargetMarker } from './targetRenderer.js';
+
+export class TargetManager {
+    constructor(map) {
+        this.map = map;
+        this.targets = new Map(); // Map для швидкого доступу за ID
+        this.targetLayer = L.layerGroup().addTo(map);
+        this.updateCallbacks = [];
         
-        // Визначаємо колір за типом
-        this.color = this.getColorByType();
-        
-        // Визначаємо іконку
-        this.icon = this.getIcon();
+        console.log('TargetManager initialized');
     }
     
-    getColorByType() {
-        const colors = {
-            'shahed': '#e74c3c',
-            'cruise_missile': '#9b59b6',
-            'ballistic_missile': '#f39c12',
-            'uav': '#3498db',
-            'helicopter': '#1abc9c',
-            'aircraft': '#95a5a6',
-            'unknown': '#7f8c8d'
-        };
+    addTarget(targetData) {
+        const target = new AirTarget(targetData);
         
-        const typeKey = this.type.toLowerCase().replace(/[^a-z]/g, '_');
-        return colors[typeKey] || colors.unknown;
+        // Додаємо до колекції
+        this.targets.set(target.id, target);
+        
+        // Рендеримо на мапі
+        target.marker = renderTarget(target, this.map, this.targetLayer);
+        
+        // Додаємо обробник кліку
+        target.marker.on('click', () => {
+            this.triggerUpdateCallbacks('target_selected', target);
+        });
+        
+        // Сповіщаємо про додавання
+        this.triggerUpdateCallbacks('target_added', target);
+        
+        return target;
     }
     
-    getIcon() {
-        const icons = {
-            'shahed': '🛸',
-            'cruise_missile': '🚀',
-            'ballistic_missile': '💥',
-            'uav': '📡',
-            'helicopter': '🚁',
-            'aircraft': '✈️',
-            'unknown': '❓'
-        };
+    updateTarget(id, updates) {
+        const target = this.targets.get(id);
+        if (!target) return null;
         
-        const typeKey = this.type.toLowerCase().replace(/[^a-z]/g, '_');
-        return icons[typeKey] || icons.unknown;
-    }
-    
-    updatePosition(newCoords) {
-        // Зберігаємо стару позицію в траєкторії
-        this.trajectory.push([...this.coordinates]);
+        // Оновлюємо властивості
+        Object.assign(target, updates);
         
-        // Обмежуємо довжину траєкторії
-        if (this.trajectory.length > 20) {
-            this.trajectory.shift();
+        // Якщо змінилися координати
+        if (updates.coordinates) {
+            target.updatePosition(updates.coordinates);
+            updateTargetMarker(target);
         }
         
-        // Оновлюємо позицію
-        this.coordinates = newCoords;
-        this.timestamp = new Date().toISOString();
+        this.triggerUpdateCallbacks('target_updated', target);
+        return target;
+    }
+    
+    removeTarget(id) {
+        const target = this.targets.get(id);
+        if (!target) return false;
         
-        // Оновлюємо вектор руху
-        if (this.trajectory.length >= 2) {
-            const lastPoint = this.trajectory[this.trajectory.length - 1];
-            const prevPoint = this.trajectory[this.trajectory.length - 2];
-            
-            this.vector.dx = lastPoint[0] - prevPoint[0];
-            this.vector.dy = lastPoint[1] - prevPoint[1];
-            
-            // Розраховуємо напрямок
-            this.direction = Math.atan2(this.vector.dy, this.vector.dx) * (180 / Math.PI);
-            if (this.direction < 0) this.direction += 360;
-        }
+        // Видаляємо маркер
+        removeTargetMarker(target, this.targetLayer);
+        
+        // Видаляємо з колекції
+        this.targets.delete(id);
+        
+        this.triggerUpdateCallbacks('target_removed', target);
+        return true;
     }
     
-    getDirectionArrow() {
-        const directions = ['Пн ⇑', 'ПнСх ⇗', 'Сх ⇐', 'ПдСх ⇙', 'Пд ⇓', 'ПдЗ ⇘', 'З ⇒', 'ПнЗ ⇖'];
-        const index = Math.round(this.direction / 45) % 8;
-        return directions[index];
+    updateTargets() {
+        // Оновлюємо позиції всіх цілей
+        this.targets.forEach(target => {
+            if (target.status === 'active') {
+                // Симулюємо рух
+                const newLat = target.coordinates[0] + target.vector.dx * 0.1;
+                const newLng = target.coordinates[1] + target.vector.dy * 0.1;
+                
+                this.updateTarget(target.id, {
+                    coordinates: [newLat, newLng]
+                });
+            }
+        });
     }
     
-    getSpeedCategory() {
-        if (this.speed < 100) return 'повільна';
-        if (this.speed < 500) return 'середня';
-        if (this.speed < 1000) return 'швидка';
-        return 'дуже швидка';
+    updateFromServer(targetsData) {
+        // Оновлюємо цілі з серверних даних
+        targetsData.forEach(targetData => {
+            if (this.targets.has(targetData.id)) {
+                this.updateTarget(targetData.id, targetData);
+            } else {
+                this.addTarget(targetData);
+            }
+        });
+        
+        // Видаляємо цілі, яких більше немає на сервері
+        const serverIds = new Set(targetsData.map(t => t.id));
+        this.targets.forEach((target, id) => {
+            if (!serverIds.has(id) && target.status === 'active') {
+                this.removeTarget(id);
+            }
+        });
     }
     
-    getAltitudeCategory() {
-        if (this.altitude < 100) return 'дуже низько';
-        if (this.altitude < 1000) return 'низько';
-        if (this.altitude < 5000) return 'середня';
-        return 'високо';
+    clearAllTargets() {
+        this.targets.forEach(target => {
+            removeTargetMarker(target, this.targetLayer);
+        });
+        this.targets.clear();
+        this.triggerUpdateCallbacks('all_targets_cleared');
     }
     
-    toJSON() {
-        return {
-            id: this.id,
-            type: this.type,
-            coordinates: this.coordinates,
-            speed: this.speed,
-            altitude: this.altitude,
-            direction: this.direction,
-            region: this.region,
-            distance: this.distance,
-            timestamp: this.timestamp,
-            status: this.status,
-            confidence: this.confidence,
-            color: this.color,
-            icon: this.icon
-        };
+    getTargetCount() {
+        return this.targets.size;
+    }
+    
+    getActiveTargets() {
+        return Array.from(this.targets.values()).filter(t => t.status === 'active');
+    }
+    
+    getTargetById(id) {
+        return this.targets.get(id);
+    }
+    
+    getAllTargets() {
+        return Array.from(this.targets.values());
+    }
+    
+    // Підписка на оновлення
+    onUpdate(callback) {
+        this.updateCallbacks.push(callback);
+    }
+    
+    triggerUpdateCallbacks(event, data) {
+        this.updateCallbacks.forEach(callback => {
+            try {
+                callback(event, data);
+            } catch (error) {
+                console.error('Callback error:', error);
+            }
+        });
     }
 }
