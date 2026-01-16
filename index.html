@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#0a1f3a">
     <title>Повітряна тривога | Україна</title>
-    <meta name="description" content="Офіційний PWA додаток для моніторингу повітряних тривог по всій Україні">
+    <meta name="description" content="Офіційний PWA додаток для моніторингу повітряних тривог по всій Україні з 6+ джерелами даних">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     
@@ -29,9 +29,20 @@
             <h1>🛡️ СИСТЕМА ПОВІТРЯНИХ ТРИВОГ | УКРАЇНА</h1>
             <div class="subtitle">
                 <span id="api-status">🔄 Підключення до системи...</span>
+                <span class="api-badge" id="api-badge">6 API</span>
             </div>
         </div>
         <div class="header-controls">
+            <div class="api-selector">
+                <select id="api-select" title="Виберіть джерело даних">
+                    <option value="auto">Автовибір (найшвидше)</option>
+                    <option value="alerts_com_ua">Alerts.com.ua</option>
+                    <option value="ubilling">Ubilling.net.ua</option>
+                    <option value="ukraine_alarm">UkraineAlarm.com</option>
+                    <option value="alerts_in_ua">Alerts.in.ua</option>
+                    <option value="siren">Siren API</option>
+                </select>
+            </div>
             <button id="btn-refresh" class="btn-control" title="Оновити дані">
                 🔄 Оновити
             </button>
@@ -67,15 +78,27 @@
                     <div class="status-icon" id="connection-icon">📡</div>
                     <div class="status-content">
                         <div class="status-value" id="connection-status">Підключення</div>
-                        <div class="status-label" id="api-source">alerts.com.ua</div>
+                        <div class="status-label" id="api-source">Тестування API...</div>
                     </div>
                 </div>
                 <div class="status-item">
-                    <div class="status-icon">🌍</div>
+                    <div class="status-icon">⚡</div>
                     <div class="status-content">
-                        <div class="status-value" id="region-count">24</div>
-                        <div class="status-label">регіони</div>
+                        <div class="status-value" id="response-time">-</div>
+                        <div class="status-label">час відповіді</div>
                     </div>
+                </div>
+            </div>
+            
+            <!-- Міні-статистика API -->
+            <div class="api-mini-stats" id="api-mini-stats">
+                <div class="api-stat">
+                    <span class="stat-label">Успішність:</span>
+                    <span class="stat-value" id="success-rate">100%</span>
+                </div>
+                <div class="api-stat">
+                    <span class="stat-label">Запитів:</span>
+                    <span class="stat-value" id="total-requests">0</span>
                 </div>
             </div>
         </div>
@@ -84,8 +107,24 @@
         <aside id="alerts-panel" class="alerts-panel">
             <div class="panel-header">
                 <h3>📢 АКТИВНІ ТРИВОГИ</h3>
-                <button id="btn-close-panel" class="btn-close">×</button>
+                <div class="panel-actions">
+                    <button id="btn-api-info" class="btn-small" title="Інформація про API">
+                        📡 API
+                    </button>
+                    <button id="btn-close-panel" class="btn-close">×</button>
+                </div>
             </div>
+            
+            <!-- Фільтр регіонів -->
+            <div class="panel-filters">
+                <input type="text" id="region-filter" placeholder="🔍 Пошук регіону..." class="filter-input">
+                <select id="alert-type-filter" class="filter-select">
+                    <option value="all">Всі тривоги</option>
+                    <option value="active">Активні</option>
+                    <option value="recent">Останні 15 хв</option>
+                </select>
+            </div>
+            
             <div class="alerts-list" id="alerts-list">
                 <div class="empty-state">
                     <div class="empty-icon">🕊️</div>
@@ -93,10 +132,27 @@
                     <div class="empty-text">Усі регіони України без повітряних тривог</div>
                 </div>
             </div>
+            
+            <!-- Статистика по регіонах -->
+            <div class="regions-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Загалом регіонів:</span>
+                    <span class="stat-value" id="total-regions">24</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">З тривогою:</span>
+                    <span class="stat-value" id="alert-regions">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Без тривоги:</span>
+                    <span class="stat-value" id="safe-regions">24</span>
+                </div>
+            </div>
+            
             <div class="panel-footer">
                 <div class="update-info">
                     <span class="update-icon">🔄</span>
-                    <span>Автооновлення: <span id="update-timer">30</span>с</span>
+                    <span>Автооновлення через: <span id="update-timer">30</span>с</span>
                 </div>
                 <button id="btn-manual-update" class="btn-small">Оновити зараз</button>
             </div>
@@ -117,90 +173,241 @@
                 📍 Моє місце
             </button>
             <button id="btn-fullscreen" class="control-btn" title="Повноекранний режим">
-                ⛶ Екран
+                ⛶ Повний екран
+            </button>
+            <button id="btn-api-test" class="control-btn" title="Тестування API">
+                🧪 Тест API
             </button>
         </div>
 
-        <!-- Модальне вікно шарів -->
+        <!-- Модальне вікно налаштувань -->
         <div id="modal-layers" class="modal">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h3>⚙️ НАЛАШТУВАННЯ МАПИ</h3>
+                    <h3>⚙️ НАЛАШТУВАННЯ СИСТЕМИ</h3>
                     <button class="btn-close">×</button>
                 </div>
                 <div class="modal-body">
-                    <div class="settings-section">
-                        <h4>🗺️ ТИП МАПИ</h4>
-                        <div class="layer-options">
-                            <div class="layer-option">
-                                <input type="radio" id="layer-dark" name="map-layer" checked>
-                                <label for="layer-dark">
-                                    <span class="layer-icon">🌙</span>
-                                    <span class="layer-name">Темна мапа</span>
-                                    <span class="layer-desc">Оптимально для нічного використання</span>
-                                </label>
-                            </div>
-                            <div class="layer-option">
-                                <input type="radio" id="layer-satellite" name="map-layer">
-                                <label for="layer-satellite">
-                                    <span class="layer-icon">🛰️</span>
-                                    <span class="layer-name">Супутникові знімки</span>
-                                    <span class="layer-desc">Детальні зображення місцевості</span>
-                                </label>
-                            </div>
-                            <div class="layer-option">
-                                <input type="radio" id="layer-terrain" name="map-layer">
-                                <label for="layer-terrain">
-                                    <span class="layer-icon">⛰️</span>
-                                    <span class="layer-name">Рельєфна мапа</span>
-                                    <span class="layer-desc">Відображення висот та рельєфу</span>
-                                </label>
+                    <div class="settings-tabs">
+                        <button class="tab-btn active" data-tab="map">🗺️ Мапа</button>
+                        <button class="tab-btn" data-tab="alerts">🔔 Тривоги</button>
+                        <button class="tab-btn" data-tab="api">📡 API</button>
+                        <button class="tab-btn" data-tab="advanced">⚡ Розширені</button>
+                    </div>
+                    
+                    <div class="tab-content active" data-tab="map">
+                        <div class="settings-section">
+                            <h4>ТИП МАПИ</h4>
+                            <div class="layer-options">
+                                <div class="layer-option">
+                                    <input type="radio" id="layer-dark" name="map-layer" checked>
+                                    <label for="layer-dark">
+                                        <span class="layer-icon">🌙</span>
+                                        <span class="layer-name">Темна мапа</span>
+                                        <span class="layer-desc">Оптимально для нічного використання</span>
+                                    </label>
+                                </div>
+                                <div class="layer-option">
+                                    <input type="radio" id="layer-satellite" name="map-layer">
+                                    <label for="layer-satellite">
+                                        <span class="layer-icon">🛰️</span>
+                                        <span class="layer-name">Супутникові знімки</span>
+                                        <span class="layer-desc">Детальні зображення місцевості</span>
+                                    </label>
+                                </div>
+                                <div class="layer-option">
+                                    <input type="radio" id="layer-terrain" name="map-layer">
+                                    <label for="layer-terrain">
+                                        <span class="layer-icon">⛰️</span>
+                                        <span class="layer-name">Рельєфна мапа</span>
+                                        <span class="layer-desc">Відображення висот та рельєфу</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="settings-section">
-                        <h4>🔔 СПОВІЩЕННЯ</h4>
-                        <div class="setting-options">
-                            <div class="setting-option">
-                                <input type="checkbox" id="setting-sound" checked>
-                                <label for="setting-sound">
-                                    <span>Звукові сповіщення</span>
-                                    <span class="setting-desc">Звук при новій тривозі</span>
-                                </label>
+                    <div class="tab-content" data-tab="alerts">
+                        <div class="settings-section">
+                            <h4>СПОВІЩЕННЯ</h4>
+                            <div class="setting-options">
+                                <div class="setting-option">
+                                    <input type="checkbox" id="setting-sound" checked>
+                                    <label for="setting-sound">
+                                        <span>Звукові сповіщення</span>
+                                        <span class="setting-desc">Звук при новій тривозі</span>
+                                    </label>
+                                </div>
+                                <div class="setting-option">
+                                    <input type="checkbox" id="setting-vibrate" checked>
+                                    <label for="setting-vibrate">
+                                        <span>Вібрація</span>
+                                        <span class="setting-desc">Вібросигнал на телефоні</span>
+                                    </label>
+                                </div>
+                                <div class="setting-option">
+                                    <input type="checkbox" id="setting-notifications" checked>
+                                    <label for="setting-notifications">
+                                        <span>Push-сповіщення</span>
+                                        <span class="setting-desc">Сповіщення в фоновому режимі</span>
+                                    </label>
+                                </div>
                             </div>
-                            <div class="setting-option">
-                                <input type="checkbox" id="setting-vibrate" checked>
-                                <label for="setting-vibrate">
-                                    <span>Вібрація</span>
-                                    <span class="setting-desc">Вібросигнал на телефоні</span>
-                                </label>
-                            </div>
-                            <div class="setting-option">
-                                <input type="checkbox" id="setting-auto-update" checked>
-                                <label for="setting-auto-update">
-                                    <span>Автооновлення</span>
-                                    <span class="setting-desc">Оновлювати дані автоматично</span>
-                                </label>
+                        </div>
+                        
+                        <div class="settings-section">
+                            <h4>ВІДОБРАЖЕННЯ</h4>
+                            <div class="setting-options">
+                                <div class="setting-option">
+                                    <input type="checkbox" id="setting-show-regions" checked>
+                                    <label for="setting-show-regions">
+                                        <span>Показувати регіони</span>
+                                        <span class="setting-desc">Відображати межі областей</span>
+                                    </label>
+                                </div>
+                                <div class="setting-option">
+                                    <input type="checkbox" id="setting-highlight-alerts" checked>
+                                    <label for="setting-highlight-alerts">
+                                        <span>Підсвічувати тривоги</span>
+                                        <span class="setting-desc">Кольорове виділення областей</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="settings-section">
-                        <h4>🔄 ІНТЕРВАЛ ОНОВЛЕННЯ</h4>
-                        <div class="interval-options">
-                            <select id="update-interval" class="interval-select">
-                                <option value="15">15 секунд</option>
-                                <option value="30" selected>30 секунд</option>
-                                <option value="60">1 хвилина</option>
-                                <option value="120">2 хвилини</option>
-                                <option value="300">5 хвилин</option>
-                            </select>
+                    <div class="tab-content" data-tab="api">
+                        <div class="settings-section">
+                            <h4>ДЖЕРЕЛА ДАНИХ</h4>
+                            <div class="api-list" id="settings-api-list">
+                                <!-- Заповнюється динамічно -->
+                            </div>
+                        </div>
+                        
+                        <div class="settings-section">
+                            <h4>НАЛАШТУВАННЯ API</h4>
+                            <div class="setting-options">
+                                <div class="setting-option">
+                                    <input type="checkbox" id="setting-auto-switch" checked>
+                                    <label for="setting-auto-switch">
+                                        <span>Автопереключення API</span>
+                                        <span class="setting-desc">Автоматично перемикатися при збоях</span>
+                                    </label>
+                                </div>
+                                <div class="setting-option">
+                                    <input type="checkbox" id="setting-test-on-start" checked>
+                                    <label for="setting-test-on-start">
+                                        <span>Тестувати при запуску</span>
+                                        <span class="setting-desc">Перевіряти всі API при старті</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-content" data-tab="advanced">
+                        <div class="settings-section">
+                            <h4>ІНТЕРВАЛ ОНОВЛЕННЯ</h4>
+                            <div class="interval-slider">
+                                <input type="range" id="update-interval-slider" min="10" max="300" value="30" step="5">
+                                <div class="interval-labels">
+                                    <span>10с</span>
+                                    <span id="current-interval">30с</span>
+                                    <span>5хв</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-section">
+                            <h4>КЕШУВАННЯ</h4>
+                            <div class="setting-options">
+                                <div class="setting-option">
+                                    <input type="checkbox" id="setting-cache-data" checked>
+                                    <label for="setting-cache-data">
+                                        <span>Кешувати дані</span>
+                                        <span class="setting-desc">Зберігати дані для офлайн роботи</span>
+                                    </label>
+                                </div>
+                                <div class="setting-option">
+                                    <button id="btn-clear-cache" class="btn-small">Очистити кеш</button>
+                                    <span class="setting-desc">Видалити всі кешовані дані</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-section">
+                            <h4>ЕКСПОРТ ДАНИХ</h4>
+                            <div class="export-options">
+                                <button id="btn-export-alerts" class="btn-small">📥 Експорт тривог</button>
+                                <button id="btn-export-history" class="btn-small">📊 Експорт історії</button>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button id="btn-save-settings" class="btn-save">💾 Зберегти налаштування</button>
+                    <button id="btn-reset-settings" class="btn-secondary">🔄 Скинути</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальне вікно інформації про API -->
+        <div id="modal-api-info" class="modal">
+            <div class="modal-content api-info">
+                <div class="modal-header">
+                    <h3>📡 ІНФОРМАЦІЯ ПРО API</h3>
+                    <button class="btn-close">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="api-current">
+                        <h4>ПОТОЧНЕ ДЖЕРЕЛО:</h4>
+                        <div class="api-card active" id="current-api-card">
+                            <div class="api-name" id="current-api-name">Тестування...</div>
+                            <div class="api-status">
+                                <span class="status-indicator" id="api-status-indicator"></span>
+                                <span class="status-text" id="api-status-text">Перевірка...</span>
+                            </div>
+                            <div class="api-meta">
+                                <span class="api-response" id="current-api-response">Час відповіді: -</span>
+                                <span class="api-uptime" id="api-uptime">Доступність: -</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="api-list">
+                        <h4>ВСІ ДОСТУПНІ API:</h4>
+                        <div class="api-list-container" id="api-list-container">
+                            <!-- Заповнюється динамічно -->
+                        </div>
+                    </div>
+                    
+                    <div class="api-stats">
+                        <h4>📊 СТАТИСТИКА СИСТЕМИ:</h4>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-value" id="total-requests-big">0</div>
+                                <div class="stat-label">Всього запитів</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="success-rate-big">100%</div>
+                                <div class="stat-label">Успішність</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="avg-response-big">-</div>
+                                <div class="stat-label">Середній час</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="api-switches">0</div>
+                                <div class="stat-label">Переключень</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="api-actions">
+                        <button id="btn-test-all-apis" class="btn-action">🧪 Тестувати всі API</button>
+                        <button id="btn-switch-api-manual" class="btn-action">🔄 Переключити вручну</button>
+                        <button id="btn-copy-api-info" class="btn-action">📋 Копіювати інфо</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -214,35 +421,36 @@
                 </div>
                 <div class="modal-body">
                     <div class="region-status" id="region-status">
-                        <div class="status-indicator alert">
-                            <span class="status-icon">⚠️</span>
-                            <span class="status-text">АКТИВНА ТРИВОГА</span>
-                        </div>
+                        <!-- Заповнюється динамічно -->
                     </div>
                     
                     <div class="region-details">
                         <div class="detail-item">
+                            <span class="detail-label">Статус:</span>
+                            <span class="detail-value" id="region-status-text">-</span>
+                        </div>
+                        <div class="detail-item">
                             <span class="detail-label">Початок тривоги:</span>
-                            <span class="detail-value" id="region-alert-start">--:--</span>
+                            <span class="detail-value" id="region-alert-start">-</span>
                         </div>
                         <div class="detail-item">
                             <span class="detail-label">Тривалість:</span>
-                            <span class="detail-value" id="region-duration">--</span>
+                            <span class="detail-value" id="region-duration">-</span>
                         </div>
                         <div class="detail-item">
-                            <span class="detail-label">Оновлено:</span>
-                            <span class="detail-value" id="region-updated">--:--</span>
+                            <span class="detail-label">Останнє оновлення:</span>
+                            <span class="detail-value" id="region-updated">-</span>
                         </div>
                         <div class="detail-item">
-                            <span class="detail-label">Джерело:</span>
-                            <span class="detail-value" id="region-source">alerts.com.ua</span>
+                            <span class="detail-label">Джерело даних:</span>
+                            <span class="detail-value" id="region-source">-</span>
                         </div>
                     </div>
                     
                     <div class="region-history" id="region-history">
-                        <h4>📈 ІСТОРІЯ ТРИВОГ</h4>
-                        <div class="history-list">
-                            <!-- Буде заповнюватися динамічно -->
+                        <h4>📈 ІСТОРІЯ ТРИВОГ (ОСТАННІ 24 ГОДИНИ)</h4>
+                        <div class="history-list" id="region-history-list">
+                            <!-- Заповнюється динамічно -->
                         </div>
                     </div>
                     
@@ -253,6 +461,9 @@
                         <button id="btn-share-alert" class="btn-action">
                             📤 Поділитися інформацією
                         </button>
+                        <button id="btn-view-history" class="btn-action">
+                            📊 Детальна історія
+                        </button>
                     </div>
                 </div>
             </div>
@@ -262,8 +473,8 @@
         <div id="loading-screen" class="loading-screen">
             <div class="loading-content">
                 <div class="loading-logo">🛡️</div>
-                <h2 class="loading-title">СИСТЕМА ПОВІТРЯНИХ ТРИВОГ</h2>
-                <div class="loading-text">Ініціалізація системи моніторингу...</div>
+                <h2 class="loading-title">СИСТЕМА ПОВІТРЯНИХ ТРИВОГ УКРАЇНИ</h2>
+                <div class="loading-subtitle">Мульти-API моніторинг з 6+ джерелами даних</div>
                 
                 <div class="loading-progress">
                     <div class="progress-bar">
@@ -272,17 +483,40 @@
                     <div class="progress-text" id="loading-progress">0%</div>
                 </div>
                 
-                <div class="loading-steps">
-                    <div class="step" id="step-1">✓ Завантаження мапи</div>
-                    <div class="step" id="step-2">⏳ Підключення до системи тривог</div>
-                    <div class="step" id="step-3">⏳ Завантаження даних регіонів</div>
-                    <div class="step" id="step-4">⏳ Підготовка інтерфейсу</div>
+                <div class="loading-steps" id="loading-steps">
+                    <div class="step active" id="step-1">
+                        <span class="step-icon">1</span>
+                        <span class="step-text">Завантаження мапи</span>
+                        <span class="step-status">⏳</span>
+                    </div>
+                    <div class="step" id="step-2">
+                        <span class="step-icon">2</span>
+                        <span class="step-text">Тестування джерел даних</span>
+                        <span class="step-status">⏳</span>
+                    </div>
+                    <div class="step" id="step-3">
+                        <span class="step-icon">3</span>
+                        <span class="step-text">Завантаження тривог</span>
+                        <span class="step-status">⏳</span>
+                    </div>
+                    <div class="step" id="step-4">
+                        <span class="step-icon">4</span>
+                        <span class="step-text">Підготовка інтерфейсу</span>
+                        <span class="step-status">⏳</span>
+                    </div>
+                </div>
+                
+                <div class="api-test-results" id="api-test-results">
+                    <h4>📡 РЕЗУЛЬТАТИ ТЕСТУВАННЯ API:</h4>
+                    <div class="api-results-list" id="api-results-list">
+                        <!-- Заповнюється динамічно -->
+                    </div>
                 </div>
                 
                 <div class="loading-tips">
-                    <div class="tip">💡 Додайте додаток на домашній екран для швидкого доступу</div>
+                    <div class="tip">💡 Система автоматично вибирає найшвидше джерело даних</div>
                     <div class="tip">🔔 Увімкніть сповіщення для миттєвих попереджень</div>
-                    <div class="tip">📡 Переконайтесь, що увімкнено інтернет-з'єднання</div>
+                    <div class="tip">📡 Працює навіть при збоях окремих API</div>
                 </div>
             </div>
         </div>
@@ -291,7 +525,7 @@
         <div id="offline-notice" class="notice offline">
             <div class="notice-content">
                 <span class="notice-icon">📡</span>
-                <span class="notice-text">Офлайн режим. Дані можуть бути неактуальними.</span>
+                <span class="notice-text">Офлайн режим. Використовуються кешовані дані.</span>
                 <button id="btn-dismiss-offline" class="notice-close">×</button>
             </div>
         </div>
@@ -305,6 +539,15 @@
                 <button id="btn-dismiss-alert" class="notice-close">×</button>
             </div>
         </div>
+
+        <!-- Повідомлення про зміну API -->
+        <div id="api-switch-notice" class="notice api-switch">
+            <div class="notice-content">
+                <span class="notice-icon">🔄</span>
+                <span class="notice-text" id="api-switch-text">Переключення на інше джерело даних</span>
+                <button id="btn-dismiss-api-switch" class="notice-close">×</button>
+            </div>
+        </div>
     </main>
 
     <!-- Футер -->
@@ -313,35 +556,44 @@
             <div class="footer-warning">
                 <div class="warning-icon">⚠️</div>
                 <div class="warning-text">
-                    <strong>ВАЖЛИВО:</strong> Цей додаток відображає офіційні дані про повітряні тривоги. 
+                    <strong>ВАЖЛИВО:</strong> Цей додаток відображає офіційні дані про повітряні тривоги з 6+ джерел. 
                     Завжди слідкуйте за офіційними джерелами та дотримуйтесь правил безпеки.
                 </div>
             </div>
             
-            <div class="footer-info">
-                <div class="info-item">
-                    <span class="info-label">Система:</span>
-                    <span class="info-value" id="system-status">Активна</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Джерело:</span>
-                    <span class="info-value" id="data-source">alerts.com.ua</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Оновлено:</span>
-                    <span class="info-value" id="last-data-update">--:--</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Версія:</span>
-                    <span class="info-value">1.0.0</span>
+            <div class="footer-stats">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Система:</span>
+                        <span class="stat-value" id="system-status">Активна</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Поточне API:</span>
+                        <span class="stat-value" id="data-source">Тестування...</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Оновлено:</span>
+                        <span class="stat-value" id="last-data-update">--:--</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Запитів:</span>
+                        <span class="stat-value" id="footer-requests">0</span>
+                    </div>
                 </div>
             </div>
             
-            <div class="footer-links">
-                <a href="#" class="footer-link" data-action="about">Про додаток</a>
-                <a href="#" class="footer-link" data-action="safety">Правила безпеки</a>
-                <a href="#" class="footer-link" data-action="sources">Джерела даних</a>
-                <a href="#" class="footer-link" data-action="contact">Контакти</a>
+            <div class="footer-info">
+                <div class="version-info">
+                    <span>Версія: <strong>2.0.0</strong></span>
+                    <span class="api-count">Підтримує <strong>6 API</strong></span>
+                </div>
+                
+                <div class="footer-links">
+                    <button class="footer-link" data-action="api-info">📡 Інфо про API</button>
+                    <button class="footer-link" data-action="safety">🛡️ Безпека</button>
+                    <button class="footer-link" data-action="about">ℹ️ Про додаток</button>
+                    <button class="footer-link" data-action="github">🐙 GitHub</button>
+                </div>
             </div>
         </div>
     </footer>
@@ -358,25 +610,49 @@
             const savedTheme = localStorage.getItem('theme') || 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
             
+            // Встановлення мови
+            document.documentElement.lang = 'uk';
+            
             // Ініціалізація Service Worker для PWA
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('/sw.js')
                     .then(registration => {
                         console.log('Service Worker зареєстровано:', registration.scope);
+                        
+                        // Оновлення Service Worker
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    showUpdateNotification();
+                                }
+                            });
+                        });
                     })
                     .catch(error => {
                         console.log('Помилка реєстрації Service Worker:', error);
                     });
             }
             
+            function showUpdateNotification() {
+                if (confirm('Доступне оновлення додатку. Оновити зараз?')) {
+                    window.location.reload();
+                }
+            }
+            
             // Відстеження онлайн статусу
             function updateOnlineStatus() {
                 const isOnline = navigator.onLine;
-                document.getElementById('offline-notice').style.display = isOnline ? 'none' : 'flex';
+                const notice = document.getElementById('offline-notice');
+                const systemStatus = document.getElementById('system-status');
                 
-                if (!isOnline) {
-                    document.getElementById('system-status').textContent = 'Офлайн';
-                    document.getElementById('system-status').className = 'info-value offline';
+                if (notice) {
+                    notice.style.display = isOnline ? 'none' : 'flex';
+                }
+                
+                if (systemStatus) {
+                    systemStatus.textContent = isOnline ? 'Онлайн' : 'Офлайн';
+                    systemStatus.className = isOnline ? 'stat-value online' : 'stat-value offline';
                 }
             }
             
@@ -384,50 +660,130 @@
             window.addEventListener('offline', updateOnlineStatus);
             updateOnlineStatus(); // Початкова перевірка
             
-            // Просте сповіщення про PWA
-            const installButton = document.getElementById('btn-install');
+            // PWA встановлення
             let deferredPrompt;
+            const installButton = document.getElementById('btn-install');
             
-            window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault();
-                deferredPrompt = e;
-                installButton.style.display = 'flex';
-                
-                installButton.addEventListener('click', async () => {
-                    if (deferredPrompt) {
-                        deferredPrompt.prompt();
-                        const { outcome } = await deferredPrompt.userChoice;
-                        if (outcome === 'accepted') {
-                            installButton.innerHTML = '✅ Встановлено';
-                            installButton.disabled = true;
+            if (installButton) {
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    deferredPrompt = e;
+                    installButton.style.display = 'flex';
+                    
+                    installButton.addEventListener('click', async () => {
+                        if (deferredPrompt) {
+                            deferredPrompt.prompt();
+                            const { outcome } = await deferredPrompt.userChoice;
+                            if (outcome === 'accepted') {
+                                installButton.innerHTML = '✅ Встановлено';
+                                installButton.disabled = true;
+                                // Можна додати analytics або показ подяки
+                            }
+                            deferredPrompt = null;
                         }
-                        deferredPrompt = null;
+                    });
+                });
+                
+                // Ховаємо кнопку, якщо додаток вже встановлений
+                if (window.matchMedia('(display-mode: standalone)').matches) {
+                    installButton.style.display = 'none';
+                }
+            }
+            
+            // Прогресивне покращення
+            if ('requestIdleCallback' in window) {
+                requestIdleCallback(() => {
+                    // Попереднє завантаження критичних ресурсів
+                    const criticalResources = [
+                        { rel: 'preload', href: 'src/net/api.js', as: 'script' },
+                        { rel: 'preload', href: 'src/map/mapInit.js', as: 'script' },
+                        { rel: 'preload', href: 'assets/icons/icon-512.png', as: 'image' }
+                    ];
+                    
+                    criticalResources.forEach(resource => {
+                        const link = document.createElement('link');
+                        Object.assign(link, resource);
+                        document.head.appendChild(link);
+                    });
+                });
+            }
+            
+            // Мінімальна анімація завантаження (основна в main.js)
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('loading-progress');
+            
+            if (progressFill && progressText) {
+                let progress = 0;
+                const interval = setInterval(() => {
+                    if (progress < 40) { // Тільки до 40%, решту зробить main.js
+                        progress += 2;
+                        progressFill.style.width = progress + '%';
+                        progressText.textContent = progress + '%';
+                    } else {
+                        clearInterval(interval);
+                    }
+                }, 100);
+            }
+            
+            // Проста обробка посилань у футері
+            document.querySelectorAll('.footer-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const action = this.dataset.action;
+                    
+                    switch(action) {
+                        case 'api-info':
+                            document.getElementById('modal-api-info')?.classList.add('active');
+                            break;
+                        case 'safety':
+                            alert('Правила безпеки при повітряній тривозі:\n\n1. Негайно прямуйте до найближчого укриття\n2. Віддавайте перевагу підвалам та цокольним поверхам\n3. За можливості - спустіться в метро\n4. Якщо ви в авто - покиньте його та знайдіть укриття\n5. Слідкуйте за офіційними джерелами інформації');
+                            break;
+                        case 'about':
+                            alert('Система повітряних тривог України v2.0\n\nМульти-API додаток для моніторингу повітряної ситуації.\nПідтримує 6+ джерел даних з автоматичним переключенням.');
+                            break;
+                        case 'github':
+                            window.open('https://github.com/vavaika22423232/neptun', '_blank');
+                            break;
                     }
                 });
             });
             
-            // Ховаємо кнопку встановлення, якщо додаток вже встановлений
-            if (window.matchMedia('(display-mode: standalone)').matches) {
-                installButton.style.display = 'none';
+            // Обробка вибору API
+            const apiSelect = document.getElementById('api-select');
+            if (apiSelect) {
+                apiSelect.addEventListener('change', function() {
+                    const selectedApi = this.value;
+                    // Логіка обробки вибору API буде в main.js
+                    console.log('Вибрано API:', selectedApi);
+                });
             }
             
-            // Анімація завантаження
-            const loadingScreen = document.getElementById('loading-screen');
-            const progressFill = document.getElementById('progress-fill');
-            const progressText = document.getElementById('loading-progress');
+            // Ініціалізація слайдера інтервалу
+            const intervalSlider = document.getElementById('update-interval-slider');
+            const currentInterval = document.getElementById('current-interval');
             
-            // Симуляція прогресу (буде замінена реальним прогресом з main.js)
-            let progress = 0;
-            const progressInterval = setInterval(() => {
-                if (progress < 90) {
-                    progress += 10;
-                    progressFill.style.width = progress + '%';
-                    progressText.textContent = progress + '%';
-                } else {
-                    clearInterval(progressInterval);
-                }
-            }, 300);
+            if (intervalSlider && currentInterval) {
+                intervalSlider.addEventListener('input', function() {
+                    const value = parseInt(this.value);
+                    currentInterval.textContent = value < 60 ? `${value}с` : `${Math.floor(value/60)}хв`;
+                });
+            }
+            
+            // Додавання класу для анімацій, якщо підтримується
+            if ('IntersectionObserver' in window && 'CSS' in window && CSS.supports('animation', 'ease')) {
+                document.body.classList.add('animations-enabled');
+            }
         });
+        
+        // Глобальна функція для показу сповіщень (тимчасова, поки не підключиться main.js)
+        window.showNotification = function(message, type = 'info') {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+            
+            // Тимчасова реалізація - можна замінити на toast
+            if (type === 'error' || type === 'warning') {
+                alert(message);
+            }
+        };
     </script>
 </body>
 </html>
