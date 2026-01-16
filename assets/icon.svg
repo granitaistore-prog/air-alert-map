@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Фон - щит України -->
+    <circle cx="256" cy="256" r="256" fill="#0A1F3A"/>
+    <circle cx="256" cy="256" r="240" fill="#005BBB"/>
+    
+    <!-- Жовта смуга прапора -->
+    <rect x="128" y="256" width="256" height="128" fill="#FFD500"/>
+    
+    <!-- Щит безпеки -->
+    <path d="M256 128C196.8 128 148.8 176 148.8 235.2C148.8 294.4 256 384 256 384C256 384 363.2 294.4 363.2 235.2C363.2 176 315.2 128 256 128Z" fill="#0A1F3A" stroke="#FFFFFF" stroke-width="16"/>
+    
+    <!-- Молнія всередині щита -->
+    <path d="M256 224L224 288H272L240 352L288 256H240L256 224Z" fill="#FFD500"/>
+    
+    <!-- Текст "UA" -->
+    <text x="256" y="440" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="48" font-weight="bold">UA</text>
+    
+    <!-- Зовнішнє кільце -->
+    <circle cx="256" cy="256" r="248" stroke="#FFFFFF" stroke-width="8" fill="none"/>
+</svg>
