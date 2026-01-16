@@ -1,5 +1,31 @@
 // Конфігурація всіх API з neptun репозиторію
 const ALL_APIS = {
+    // API з репозиторію and3rson/raid (офіційне та локальне)
+    ALERTS_COM_UA_OFFICIAL: {
+        name: 'Alerts.com.ua (Official API)',
+        states: 'https://alerts.com.ua/api/states',
+        history: 'https://alerts.com.ua/api/history',
+        regions: 'https://alerts.com.ua/api/regions',
+        active: true,
+        priority: 1, // Найвищий пріоритет
+        headers: {
+            'X-API-Key': 'demo_key' // 👈 Замініть на ваш ключ
+        }
+    },
+    
+    // Локальна версія API (для тестування)
+    ALERTS_COM_UA_LOCAL: {
+        name: 'Alerts.com.ua (Local)',
+        states: 'http://127.0.0.1:10101/api/states',
+        history: 'http://127.0.0.1:10101/api/history',
+        regions: 'http://127.0.0.1:10101/api/regions',
+        active: false, // Увімкніть для локального тесту
+        priority: 7,
+        headers: {
+            'X-API-Key': 'foo' // Тестовий ключ для локального сервера
+        }
+    },
+    
     // Основне API (з neptun/server/neptun.py)
     ALERTS_COM_UA: {
         name: 'Alerts.com.ua',
@@ -7,7 +33,7 @@ const ALL_APIS = {
         history: 'https://alerts.com.ua/api/history',
         regions: 'https://alerts.com.ua/api/regions',
         active: true,
-        priority: 1
+        priority: 2
     },
     
     // Альтернативне API (з neptun/server/data.py)
@@ -16,7 +42,7 @@ const ALL_APIS = {
         states: 'https://ubilling.net.ua/alerts/?states',
         history: 'https://ubilling.net.ua/alerts/?history',
         active: true,
-        priority: 2
+        priority: 3
     },
     
     // Резервне API 1
@@ -25,7 +51,7 @@ const ALL_APIS = {
         states: 'https://api.ukrainealarm.com/api/v3/alerts',
         history: 'https://api.ukrainealarm.com/api/v3/alerts/history',
         active: true,
-        priority: 3,
+        priority: 4,
         headers: {
             'Authorization': 'Bearer public'
         }
@@ -37,7 +63,7 @@ const ALL_APIS = {
         states: 'https://alerts.in.ua/api/v1/alerts/active',
         history: 'https://alerts.in.ua/api/v1/alerts/history',
         active: true,
-        priority: 4
+        priority: 5
     },
     
     // Резервне API 3 (з neptun)
@@ -46,7 +72,7 @@ const ALL_APIS = {
         states: 'https://siren.org.ua/api/alerts',
         regions: 'https://siren.org.ua/api/regions',
         active: true,
-        priority: 5
+        priority: 6
     },
     
     // Локалізоване API
@@ -54,7 +80,7 @@ const ALL_APIS = {
         name: 'Локальне API',
         states: 'http://localhost:8000/api/alerts',
         active: false, // Для локального тестування
-        priority: 6
+        priority: 8
     }
 };
 
@@ -122,6 +148,7 @@ class APIManager {
         });
         
         console.log(`API Manager initialized with ${this.activeAPIs.length} APIs`);
+        console.log(`Current API: ${this.currentAPI?.name}`);
     }
     
     // Отримати поточні тривоги
@@ -243,6 +270,12 @@ class APIManager {
     // Нормалізація даних з різних API
     normalizeData(data, apiName, endpoint) {
         switch(apiName) {
+            // API з and3rson/raid
+            case 'Alerts.com.ua (Official API)':
+            case 'Alerts.com.ua (Local)':
+                return this.normalizeAlertsComUaOfficial(data, endpoint);
+                
+            // Інші API
             case 'Alerts.com.ua':
                 return this.normalizeAlertsComUa(data, endpoint);
                 
@@ -263,7 +296,20 @@ class APIManager {
         }
     }
     
-    // Нормалізація для alerts.com.ua
+    // Нормалізація для офіційного API alerts.com.ua (з and3rson/raid)
+    normalizeAlertsComUaOfficial(data, endpoint) {
+        // Це API вже повертає стандартизований формат
+        if (endpoint === 'states') {
+            return {
+                states: data.states || data,
+                timestamp: new Date().toISOString(),
+                count: data.states?.length || 0
+            };
+        }
+        return data;
+    }
+    
+    // Нормалізація для alerts.com.ua (стара версія)
     normalizeAlertsComUa(data, endpoint) {
         if (endpoint === 'states') {
             return {
@@ -447,6 +493,15 @@ class APIManager {
         }
         
         return results;
+    }
+    
+    // Додатково: метод для отримання API-ключів
+    getAPIKeys() {
+        return {
+            'Alerts.com.ua (Official API)': 'demo_key', // Замініть на реальний ключ
+            'Alerts.com.ua (Local)': 'foo',
+            'UkraineAlarm.com': 'public'
+        };
     }
 }
 
