@@ -1,134 +1,88 @@
+// Service Worker для PWA додатку
 const CACHE_NAME = 'air-alert-pwa-v1';
-const STATIC_CACHE = 'static-v1';
-const DYNAMIC_CACHE = 'dynamic-v1';
-
-const staticAssets = [
-    '/',
-    '/index.html',
-    '/manifest.json',
-    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+const urlsToCache = [
+  '/',
+  '/index.html',
+  '/src/ui/main.js',
+  '/src/map/mapInit.js',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+  '/manifest.json'
 ];
 
-// Інсталяція
+// Встановлення Service Worker
 self.addEventListener('install', event => {
-    console.log('Service Worker: Installing...');
-    event.waitUntil(
-        caches.open(STATIC_CACHE)
-            .then(cache => {
-                console.log('Service Worker: Caching static assets');
-                return cache.addAll(staticAssets);
-            })
-            .then(() => {
-                console.log('Service Worker: Install completed');
-                return self.skipWaiting();
-            })
-    );
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('✅ Кеш відкрито');
+        return cache.addAll(urlsToCache);
+      })
+      .then(() => self.skipWaiting())
+  );
 });
 
-// Активація
+// Активізація та очищення старого кешу
 self.addEventListener('activate', event => {
-    console.log('Service Worker: Activating...');
-    event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cacheName => {
-                    if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
-                        console.log('Service Worker: Deleting old cache', cacheName);
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        }).then(() => {
-            console.log('Service Worker: Activated');
-            return self.clients.claim();
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('🗑️ Видаляємо старий кеш:', cacheName);
+            return caches.delete(cacheName);
+          }
         })
-    );
+      );
+    }).then(() => self.clients.claim())
+  );
 });
 
-// Fetch стратегія: Network First для API, Cache First для решти
+// Обробка запитів
 self.addEventListener('fetch', event => {
-    const url = new URL(event.request.url);
-    
-    // API запити - тільки мережа
-    if (url.pathname.includes('/api/')) {
-        event.respondWith(
-            fetch(event.request)
-                .catch(() => {
-                    return new Response(JSON.stringify({ error: 'Офлайн режим' }), {
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                })
-        );
-        return;
-    }
-    
-    // Для решти - Cache First з fallback до мережі
-    event.respondWith(
-        caches.match(event.request)
-            .then(cachedResponse => {
-                // Повертаємо з кешу, якщо є
-                if (cachedResponse) {
-                    return cachedResponse;
-                }
-                
-                // Інакше робимо запит до мережі
-                return fetch(event.request)
-                    .then(networkResponse => {
-                        // Кешуємо тільки успішні GET запити
-                        if (event.request.method === 'GET' && 
-                            networkResponse.status === 200 &&
-                            !url.pathname.includes('/api/')) {
-                            
-                            const responseClone = networkResponse.clone();
-                            caches.open(DYNAMIC_CACHE)
-                                .then(cache => {
-                                    cache.put(event.request, responseClone);
-                                });
-                        }
-                        return networkResponse;
-                    })
-                    .catch(() => {
-                        // Fallback для сторінки
-                        if (event.request.mode === 'navigate') {
-                            return caches.match('/index.html');
-                        }
-                        return new Response('Офлайн режим');
-                    });
-            })
-    );
-});
-
-// Пуш-сповіщення
-self.addEventListener('push', event => {
-    const data = event.data ? event.data.json() : {};
-    const title = data.title || 'Повітряна тривога';
-    const options = {
-        body: data.body || 'Нова тривога в регіоні',
-        icon: 'assets/icons/icon-192.png',
-        badge: 'assets/icons/badge.png',
-        vibrate: [200, 100, 200],
-        data: {
-            url: data.url || '/'
+  // Пропускаємо запити до API
+  if (event.request.url.includes('api.') || 
+      event.request.url.includes('localhost') ||
+      event.request.url.includes('127.0.0.1')) {
+    return fetch(event.request);
+  }
+  
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        // Повертаємо з кешу або робимо запит
+        if (response) {
+          return response;
         }
-    };
-    
-    event.waitUntil(
-        self.registration.showNotification(title, options)
-    );
+        
+        return fetch(event.request).then(response => {
+          // Не кешуємо невдалі запити
+          if (!response || response.status !== 200 || response.type !== 'basic') {
+            return response;
+          }
+          
+          // Кешуємо нові запити
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME)
+            .then(cache => {
+              cache.put(event.request, responseToCache);
+            });
+            
+          return response;
+        });
+      })
+      .catch(() => {
+        // Fallback для офлайн режиму
+        if (event.request.mode === 'navigate') {
+          return caches.match('/index.html');
+        }
+      })
+  );
 });
 
-// Клік по сповіщенню
-self.addEventListener('notificationclick', event => {
-    event.notification.close();
-    event.waitUntil(
-        clients.openWindow(event.notification.data.url)
-    );
-});
-
-// Оновлення контенту
+// Оновлення у фоновому режимі
 self.addEventListener('message', event => {
-    if (event.data.action === 'skipWaiting') {
-        self.skipWaiting();
-    }
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
